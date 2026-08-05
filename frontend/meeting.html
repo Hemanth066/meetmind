@@ -67,6 +67,15 @@
     </div>
   </div>
 
+  <div id="waitingForHostOverlay" class="modal-overlay">
+    <div class="modal glass text-center" style="max-width:450px;padding:2.5rem 1.5rem">
+      <div style="font-size:2.5rem;margin-bottom:1rem">⌛</div>
+      <h2 style="margin-bottom:0.5rem">Waiting for Host</h2>
+      <p id="waitingForHostMsg" style="color:var(--text-muted);font-size:0.9rem">The meeting hasn't started yet. You will automatically enter as soon as the host starts the meeting.</p>
+      <button class="btn btn-outline btn-sm" style="margin-top:1.5rem" onclick="window.location.href='/dashboard.html'">Leave Waiting Room</button>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/webrtc.js"></script>

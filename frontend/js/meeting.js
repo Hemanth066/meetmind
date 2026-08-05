@@ -177,7 +177,20 @@ async function init() {
       });
     });
 
+    socket.on('waiting-for-host', (data) => {
+      document.getElementById('waitingForHostOverlay').classList.add('show');
+    });
+
+    socket.on('host-started-meeting', () => {
+      document.getElementById('waitingForHostOverlay').classList.remove('show');
+      socket.emit('join-room', {
+        meetingDbId: joinInfo.meetingDbId,
+        meetingCode: joinInfo.meetingId
+      });
+    });
+
     socket.on('room-joined', async (data) => {
+      document.getElementById('waitingForHostOverlay').classList.remove('show');
       meetingTitle.textContent = data.meeting.title;
       isHost = data.isHost;
       cameraRequired = data.meeting.settings.cameraRequired;

@@ -65,6 +65,16 @@ function setupSocketHandlers(io) {
         const isHost = meeting.hostId.toString() === socket.user._id.toString();
         const room = getRoom(meetingDbId);
 
+        // Check if meeting has not been started by the host yet
+        if (!isHost && meeting.status !== 'live') {
+          socket.join(`waiting-host-${meetingDbId}`);
+          socket.emit('waiting-for-host', {
+            message: 'Waiting for the host to start the meeting',
+            meetingTitle: meeting.title
+          });
+          return;
+        }
+
         if (participant.status === 'pending_approval') {
           socket.emit('waiting-approval', { message: 'Waiting for host approval' });
           return;
@@ -76,6 +86,7 @@ function setupSocketHandlers(io) {
           });
         }
 
+        socket.leave(`waiting-host-${meetingDbId}`);
         socket.join(meetingDbId);
         socket.meetingDbId = meetingDbId;
         socket.participantId = participant._id.toString();
@@ -94,10 +105,15 @@ function setupSocketHandlers(io) {
           handRaised: false
         });
 
-        if (meeting.status !== 'live') {
+        if (isHost && meeting.status !== 'live') {
           meeting.status = 'live';
           meeting.startedAt = meeting.startedAt || new Date();
           await meeting.save();
+
+          // Notify all waiting participants that host started the meeting
+          io.to(`waiting-host-${meetingDbId}`).emit('host-started-meeting', {
+            meetingDbId: meeting._id.toString()
+          });
         }
 
         participant.status = 'joined';
