@@ -6,6 +6,7 @@ class WebRTCManager {
     this.config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
     this.onRemoteStream = null;
     this.onPeerDisconnected = null;
+    this.onIceCandidate = null;
   }
 
   async getLocalStream(video = true, audio = true) {
@@ -82,6 +83,9 @@ class WebRTCManager {
   }
 
   createPeer(socketId, initiator) {
+    if (this.peers.has(socketId)) {
+      this.removePeer(socketId);
+    }
     const pc = new RTCPeerConnection(this.config);
 
     if (this.localStream) {
@@ -91,8 +95,9 @@ class WebRTCManager {
     }
 
     pc.ontrack = (e) => {
+      const stream = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);
       if (this.onRemoteStream) {
-        this.onRemoteStream(socketId, e.streams[0]);
+        this.onRemoteStream(socketId, stream);
       }
     };
 
@@ -103,13 +108,13 @@ class WebRTCManager {
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         this.removePeer(socketId);
         if (this.onPeerDisconnected) this.onPeerDisconnected(socketId);
       }
     };
 
-    this.peers.set(socketId, { pc, initiator });
+    this.peers.set(socketId, { pc, initiator, candidateQueue: [] });
     return pc;
   }
 
@@ -128,6 +133,7 @@ class WebRTCManager {
       peer = this.peers.get(socketId);
     }
     await peer.pc.setRemoteDescription(new RTCSessionDescription(offer));
+    await this.flushIceCandidates(peer);
     const answer = await peer.pc.createAnswer();
     await peer.pc.setLocalDescription(answer);
     return answer;
@@ -137,20 +143,42 @@ class WebRTCManager {
     const peer = this.peers.get(socketId);
     if (peer) {
       await peer.pc.setRemoteDescription(new RTCSessionDescription(answer));
+      await this.flushIceCandidates(peer);
     }
   }
 
   async handleIceCandidate(socketId, candidate) {
     const peer = this.peers.get(socketId);
     if (peer && candidate) {
-      await peer.pc.addIceCandidate(new RTCIceCandidate(candidate));
+      if (peer.pc.remoteDescription && peer.pc.remoteDescription.type) {
+        try {
+          await peer.pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.warn('[webrtc.js] addIceCandidate error:', e);
+        }
+      } else {
+        peer.candidateQueue.push(candidate);
+      }
+    }
+  }
+
+  async flushIceCandidates(peer) {
+    if (peer && peer.candidateQueue && peer.candidateQueue.length > 0) {
+      for (const candidate of peer.candidateQueue) {
+        try {
+          await peer.pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.warn('[webrtc.js] Error adding queued ICE candidate:', e);
+        }
+      }
+      peer.candidateQueue = [];
     }
   }
 
   removePeer(socketId) {
     const peer = this.peers.get(socketId);
     if (peer) {
-      peer.pc.close();
+      try { peer.pc.close(); } catch {}
       this.peers.delete(socketId);
     }
   }

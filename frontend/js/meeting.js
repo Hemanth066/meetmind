@@ -59,9 +59,18 @@ function addVideoTile(id, stream, name, isLocal = false) {
     videoGrid.appendChild(tile);
   }
   const video = tile.querySelector('video');
-  video.srcObject = stream;
-  tile.querySelector('.name-tag').textContent = name + (isLocal ? ' (You)' : '');
-  if (isLocal) frameCapture = new FrameCapture(video, 2000);
+  if (video.srcObject !== stream) {
+    video.srcObject = stream;
+    if (!isLocal) {
+      video.muted = false;
+    }
+    video.play().catch(err => {
+      console.warn(`[meeting.js] Video play error for tile ${id}:`, err);
+    });
+  }
+  const displayName = name || (isLocal ? user.name : (remoteVideos.get(id) || 'Participant'));
+  tile.querySelector('.name-tag').textContent = displayName + (isLocal ? ' (You)' : '');
+  if (isLocal && !frameCapture) frameCapture = new FrameCapture(video, 2000);
 }
 
 function removeVideoTile(id) {
@@ -134,6 +143,20 @@ async function init() {
     const stream = await webrtc.getLocalStream(needCamera, true);
     addVideoTile('local', stream, user.name, true);
 
+    webrtc.onIceCandidate = (socketId, candidate) => {
+      socket?.emit('webrtc-ice-candidate', { targetSocketId: socketId, candidate });
+    };
+
+    webrtc.onRemoteStream = (socketId, stream) => {
+      const name = remoteVideos.get(socketId) || 'Participant';
+      addVideoTile(socketId, stream, name);
+    };
+
+    webrtc.onPeerDisconnected = (socketId) => {
+      removeVideoTile(socketId);
+      refreshParticipants();
+    };
+
     vad = new VoiceActivityDetector((seconds) => {
       socket?.emit('speaking-time', { seconds });
     });
@@ -161,6 +184,7 @@ async function init() {
       startTimer();
 
       for (const peer of data.peers) {
+        remoteVideos.set(peer.socketId, peer.name);
         await connectToPeer(peer.socketId, true);
       }
       refreshParticipants();
@@ -168,7 +192,8 @@ async function init() {
 
     socket.on('user-joined', async (data) => {
       addChatMessage('System', `${data.name} joined`, new Date());
-      await connectToPeer(data.socketId, false);
+      remoteVideos.set(data.socketId, data.name);
+      webrtc.createPeer(data.socketId, false);
       refreshParticipants();
     });
 
@@ -180,14 +205,11 @@ async function init() {
     });
 
     socket.on('webrtc-offer', async ({ offer, senderSocketId, senderName }) => {
+      if (senderName) {
+        remoteVideos.set(senderSocketId, senderName);
+      }
       const answer = await webrtc.handleOffer(senderSocketId, offer);
       socket.emit('webrtc-answer', { targetSocketId: senderSocketId, answer });
-      const peer = webrtc.peers.get(senderSocketId);
-      if (peer) {
-        webrtc.onRemoteStream = (id, stream) => {
-          addVideoTile(id, stream, senderName);
-        };
-      }
     });
 
     socket.on('webrtc-answer', async ({ answer, senderSocketId }) => {
@@ -256,15 +278,6 @@ async function init() {
         startCameraGracePeriod();
       }
     });
-
-    webrtc.onIceCandidate = (socketId, candidate) => {
-      socket.emit('webrtc-ice-candidate', { targetSocketId: socketId, candidate });
-    };
-
-    webrtc.onRemoteStream = (socketId, stream) => {
-      const name = remoteVideos.get(socketId) || 'Participant';
-      addVideoTile(socketId, stream, name);
-    };
 
     if (isHost) loadCameraRequests();
 
