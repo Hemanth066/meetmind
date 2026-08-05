@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meeting – MeetMind</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="meeting-room">
+  <header class="meeting-header">
+    <div>
+      <strong id="meetingTitle">Meeting</strong>
+      <span class="timer" id="meetingTimer">00:00:00</span>
+    </div>
+    <div class="recording-indicator" id="recordingIndicator">
+      <span class="dot"></span> REC
+    </div>
+    <div id="meetingIdDisplay" style="color:var(--text-muted);font-size:0.85rem"></div>
+  </header>
+
+  <div class="meeting-body">
+    <div class="video-grid" id="videoGrid"></div>
+
+    <aside class="meeting-sidebar">
+      <div class="sidebar-tabs">
+        <button class="active" data-tab="chat">Chat</button>
+        <button data-tab="participants">People</button>
+        <button data-tab="analytics" id="analyticsTab" class="hidden">Live AI</button>
+        <button data-tab="requests" id="requestsTab" class="hidden">Requests</button>
+      </div>
+      <div class="sidebar-panel active" id="panel-chat">
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-row">
+          <input type="text" class="form-control" id="chatInput" placeholder="Type a message...">
+          <button class="btn btn-primary btn-sm" id="sendChat">Send</button>
+        </div>
+      </div>
+      <div class="sidebar-panel" id="panel-participants">
+        <div id="participantList"></div>
+      </div>
+      <div class="sidebar-panel" id="panel-analytics">
+        <div id="liveAnalyticsList">
+          <p style="color:var(--text-muted);font-size:0.9rem;padding:1rem">Waiting for AI analytics stream...</p>
+        </div>
+      </div>
+      <div class="sidebar-panel" id="panel-requests">
+        <div id="cameraRequests"></div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="meeting-controls">
+    <button class="control-btn" id="toggleMic" title="Mute/Unmute">🎤</button>
+    <button class="control-btn" id="toggleCam" title="Camera">📷</button>
+    <button class="control-btn" id="toggleScreen" title="Share Screen">🖥️</button>
+    <button class="control-btn" id="raiseHand" title="Raise Hand">✋</button>
+    <button class="control-btn" id="toggleRecord" title="Record" class="hidden">⏺️</button>
+    <button class="control-btn end-call" id="leaveBtn">Leave</button>
+    <button class="control-btn end-call hidden" id="endMeetingBtn">End Meeting</button>
+  </footer>
+
+  <div id="cameraWarning" class="modal-overlay">
+    <div class="modal glass">
+      <h2>Camera Required</h2>
+      <p id="cameraWarningText">Camera is required for this meeting. Please turn it back ON within 1 minute.</p>
+      <p class="timer" id="graceTimer">1:00</p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/webrtc.js"></script>
+  <script src="/js/meeting.js"></script>
+</body>
+</html>

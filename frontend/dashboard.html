@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard – MeetMind</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="/dashboard.html" class="logo">Meet<span>Mind</span></a>
+      <ul class="nav-links">
+        <li><a href="/dashboard.html" class="active">Dashboard</a></li>
+        <li><a href="/profile.html">Profile</a></li>
+        <li><a href="/settings.html">Settings</a></li>
+        <li><a href="#" id="logoutBtn">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="dashboard container">
+    <div class="welcome-banner glass">
+      <div>
+        <h1 id="welcomeText">Welcome back!</h1>
+        <p>Manage your meetings and view analytics</p>
+      </div>
+      <div id="notifBadge"></div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card glass">
+        <div class="value" id="statMeetings">0</div>
+        <div class="label">Total Meetings</div>
+      </div>
+      <div class="stat-card glass">
+        <div class="value" id="statUpcoming">0</div>
+        <div class="label">Upcoming</div>
+      </div>
+      <div class="stat-card glass">
+        <div class="value" id="statAvgEngagement">—</div>
+        <div class="label">Avg Engagement</div>
+      </div>
+    </div>
+
+    <div class="actions-grid">
+      <a href="/create-meeting.html" class="action-card glass">
+        <div class="icon">🎥</div>
+        <h3>Create Meeting</h3>
+        <p>Start a new video meeting with AI analytics</p>
+      </a>
+      <a href="/join.html" class="action-card glass">
+        <div class="icon">🔗</div>
+        <h3>Join Meeting</h3>
+        <p>Enter meeting ID and password to join</p>
+      </a>
+    </div>
+
+    <section style="margin-bottom:2rem">
+      <h2 class="section-title">Upcoming Meetings</h2>
+      <div id="upcomingList" class="meeting-list"></div>
+    </section>
+
+    <section>
+      <h2 class="section-title">Meeting History</h2>
+      <div id="historyList" class="meeting-list"></div>
+    </section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('Auth required');
+    const user = api.getUser();
+    document.getElementById('welcomeText').textContent = `Welcome, ${user?.name || 'User'}!`;
+
+    document.getElementById('logoutBtn').addEventListener('click', async (e) => {
+      e.preventDefault();
+      try { await api.logout(); } catch {}
+      api.clearToken();
+      window.location.href = '/login.html';
+    });
+
+    function renderMeetings(container, meetings, emptyMsg) {
+      if (!meetings.length) {
+        container.innerHTML = `<div class="empty-state glass">${emptyMsg}</div>`;
+        return;
+      }
+      container.innerHTML = meetings.map(m => `
+        <div class="meeting-item glass">
+          <div>
+            <strong>${m.title || 'Untitled Meeting'}</strong>
+            <div class="meta">ID: ${m.meetingId} · ${formatDate(m.startedAt || m.scheduledAt)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.75rem">
+            <span class="badge badge-${m.status === 'live' ? 'live' : 'ended'}">${m.status}</span>
+            ${m.role === 'host' ? '<span class="badge badge-host">Host</span>' : ''}
+            ${m.role === 'host' ? `<a href="/analytics-host.html?id=${m.id}" class="btn btn-sm btn-primary">📊 Analytics</a>` : `<a href="/analytics-participant.html?id=${m.id}" class="btn btn-sm btn-outline">📈 My Stats</a>`}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function load() {
+      try {
+        const [history, upcoming] = await Promise.all([
+          api.getHistory(),
+          api.getUpcoming()
+        ]);
+
+        const meetings = history.meetings || [];
+        document.getElementById('statMeetings').textContent = meetings.length;
+        document.getElementById('statUpcoming').textContent = (upcoming.meetings || []).length;
+
+        const scores = meetings.filter(m => m.engagementScore).map(m => m.engagementScore);
+        document.getElementById('statAvgEngagement').textContent = scores.length
+          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) + '%'
+          : '—';
+
+        renderMeetings(document.getElementById('upcomingList'), upcoming.meetings || [], 'No upcoming meetings');
+        renderMeetings(document.getElementById('historyList'), meetings, 'No meeting history yet');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

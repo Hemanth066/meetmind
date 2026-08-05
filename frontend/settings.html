@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings – MeetMind</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="/dashboard.html" class="logo">Meet<span>Mind</span></a>
+      <ul class="nav-links">
+        <li><a href="/dashboard.html">Dashboard</a></li>
+        <li><a href="/profile.html">Profile</a></li>
+        <li><a href="/settings.html" class="active">Settings</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="dashboard container">
+    <h1 style="margin-bottom:2rem">Settings</h1>
+
+    <section class="glass" style="padding:2rem;margin-bottom:2rem;max-width:600px">
+      <h2 style="margin-bottom:1rem">Notifications</h2>
+      <div id="notificationsList"></div>
+      <button id="markAllRead" class="btn btn-outline btn-sm" style="margin-top:1rem">Mark All Read</button>
+    </section>
+
+    <section class="glass" style="padding:2rem;max-width:600px">
+      <h2 style="margin-bottom:1rem">Account</h2>
+      <p style="color:var(--text-muted);margin-bottom:1rem">Signed in as <strong id="userEmail"></strong></p>
+      <button id="logoutBtn" class="btn btn-danger">Logout</button>
+    </section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('Auth required');
+    document.getElementById('userEmail').textContent = api.getUser()?.email || '';
+
+    async function loadNotifications() {
+      try {
+        const data = await api.getNotifications();
+        const list = document.getElementById('notificationsList');
+        if (!data.notifications?.length) {
+          list.innerHTML = '<p style="color:var(--text-muted)">No notifications</p>';
+          return;
+        }
+        list.innerHTML = data.notifications.map(n => `
+          <div style="padding:0.75rem 0;border-bottom:1px solid rgba(255,255,255,0.05);${n.read ? 'opacity:0.6' : ''}">
+            <strong>${n.title}</strong>
+            <p style="font-size:0.85rem;color:var(--text-muted)">${n.message}</p>
+            <span style="font-size:0.75rem;color:var(--text-muted)">${formatDate(n.createdAt)}</span>
+          </div>
+        `).join('');
+      } catch {}
+    }
+
+    document.getElementById('markAllRead').addEventListener('click', async () => {
+      await api.markAllRead();
+      loadNotifications();
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      api.clearToken();
+      window.location.href = '/login.html';
+    });
+
+    loadNotifications();
+  </script>
+</body>
+</html>

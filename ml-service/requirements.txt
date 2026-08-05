@@ -1,0 +1,12 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+opencv-python-headless==4.10.0.84
+mediapipe==0.10.14
+numpy==1.26.4
+Pillow==10.4.0
+python-multipart==0.0.9
+openai-whisper==20231117
+spacy==3.7.5
+pydantic==2.9.2
+python-dotenv==1.0.1
+openai==1.51.0

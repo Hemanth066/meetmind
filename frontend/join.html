@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Join Meeting – MeetMind</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="/dashboard.html" class="logo">Meet<span>Mind</span></a>
+      <ul class="nav-links"><li><a href="/dashboard.html">← Back</a></li></ul>
+    </div>
+  </nav>
+
+  <main class="dashboard container">
+    <div class="glass" style="max-width:480px;margin:2rem auto;padding:2rem">
+      <h1>Join Meeting</h1>
+      <p style="color:var(--text-muted);margin-bottom:2rem">Enter meeting credentials</p>
+      <div id="alert" class="alert hidden"></div>
+
+      <form id="joinForm">
+        <div class="form-group">
+          <label>Meeting ID</label>
+          <input type="text" class="form-control" name="meetingId" id="meetingId" required placeholder="123-456-789">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="text" class="form-control" name="password" required placeholder="Meeting password">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Continue</button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Camera permission pre-check -->
+  <div id="mediaModal" class="modal-overlay">
+    <div class="modal glass">
+      <h2>Media Permissions</h2>
+      <p style="color:var(--text-muted);margin-bottom:1rem">This meeting requires camera and microphone access.</p>
+      <div id="mediaPreview" style="margin-bottom:1rem;border-radius:12px;overflow:hidden;background:#1e293b">
+        <video id="previewVideo" autoplay muted playsinline style="width:100%;max-height:200px"></video>
+      </div>
+      <div id="cameraRequiredMsg" class="alert alert-warning hidden">
+        Camera is required for this meeting. If you have a valid reason, submit a request to the meeting host.
+      </div>
+      <div id="exemptionForm" class="hidden">
+        <div class="form-group">
+          <label>Reason for camera exemption</label>
+          <textarea class="form-control" id="exemptionReason" rows="3" placeholder="e.g. Webcam not working, low bandwidth..."></textarea>
+        </div>
+        <button id="submitExemption" class="btn btn-outline">Submit Request to Host</button>
+      </div>
+      <div class="modal-actions">
+        <button id="requestExemptionBtn" class="btn btn-outline hidden">Request Camera Exemption</button>
+        <button id="joinWithMedia" class="btn btn-primary">Join with Camera & Mic</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('Auth required');
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('id')) document.getElementById('meetingId').value = params.get('id');
+
+    let joinData = null;
+    let cameraRequired = false;
+    let previewStream = null;
+
+    document.getElementById('joinForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const alert = document.getElementById('alert');
+      const fd = new FormData(e.target);
+      try {
+        const data = await api.joinMeeting({
+          meetingId: fd.get('meetingId'),
+          password: fd.get('password')
+        });
+        joinData = data;
+        cameraRequired = data.meeting.settings.cameraRequired;
+
+        if (data.participant.status === 'pending_approval') {
+          showAlert(alert, 'Waiting for host to approve your camera exemption request.', 'warning');
+          return;
+        }
+
+        document.getElementById('mediaModal').classList.add('show');
+
+        if (cameraRequired && !data.participant.cameraExempt) {
+          document.getElementById('cameraRequiredMsg').classList.remove('hidden');
+          document.getElementById('requestExemptionBtn').classList.remove('hidden');
+        }
+
+        try {
+          if (typeof window !== 'undefined' && window.isSecureContext === false && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+            throw new Error('Camera/Microphone access requires HTTPS or localhost. Browser blocked mediaDevices on unencrypted http://' + location.host);
+          }
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('navigator.mediaDevices is undefined in this browser/context.');
+          }
+          previewStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          document.getElementById('previewVideo').srcObject = previewStream;
+        } catch (mediaErr) {
+          console.error('[join.html:L98] Media preview access error:', mediaErr);
+          if (cameraRequired && !data.participant.cameraExempt) {
+            document.getElementById('exemptionForm').classList.remove('hidden');
+          }
+        }
+      } catch (err) {
+        showAlert(alert, err.message);
+      }
+    });
+
+    document.getElementById('requestExemptionBtn').addEventListener('click', () => {
+      document.getElementById('exemptionForm').classList.remove('hidden');
+    });
+
+    document.getElementById('submitExemption').addEventListener('click', async () => {
+      const reason = document.getElementById('exemptionReason').value.trim();
+      if (!reason) return alert('Please enter a reason');
+      try {
+        await api.requestCameraExemption(joinData.meeting.id, reason);
+        document.getElementById('mediaModal').classList.remove('show');
+        showAlert(document.getElementById('alert'), 'Request sent to host. Please wait for approval.', 'success');
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    document.getElementById('joinWithMedia').addEventListener('click', () => {
+      if (previewStream) previewStream.getTracks().forEach(t => t.stop());
+      sessionStorage.setItem('meetmind_join', JSON.stringify({
+        meetingDbId: joinData.meeting.id,
+        meetingId: joinData.meeting.meetingId,
+        password: joinData.meeting.password || document.querySelector('[name=password]').value,
+        isHost: joinData.isHost,
+        cameraExempt: joinData.participant.cameraExempt,
+        settings: joinData.meeting.settings
+      }));
+      window.location.href = '/meeting.html';
+    });
+  </script>
+</body>
+</html>

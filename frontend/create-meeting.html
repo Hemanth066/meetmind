@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Meeting – MeetMind</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="/dashboard.html" class="logo">Meet<span>Mind</span></a>
+      <ul class="nav-links"><li><a href="/dashboard.html">← Back</a></li></ul>
+    </div>
+  </nav>
+
+  <main class="dashboard container">
+    <div class="glass" style="max-width:600px;margin:2rem auto;padding:2rem">
+      <h1 style="margin-bottom:0.5rem">Create Meeting</h1>
+      <p style="color:var(--text-muted);margin-bottom:2rem">You will become the host of this meeting</p>
+      <div id="alert" class="alert hidden"></div>
+
+      <form id="createForm">
+        <div class="form-group">
+          <label>Meeting Title</label>
+          <input type="text" class="form-control" name="title" placeholder="Team Standup">
+        </div>
+        <div class="form-group">
+          <label>Schedule (optional)</label>
+          <input type="datetime-local" class="form-control" name="scheduledAt">
+        </div>
+        <fieldset class="form-group">
+          <label>Host Settings</label>
+          <div class="checkbox-group">
+            <label><input type="checkbox" name="waitingRoom" checked> Waiting Room</label>
+            <label><input type="checkbox" name="aiAnalytics" checked> AI Analytics</label>
+            <label><input type="checkbox" name="recording"> Recording</label>
+            <label><input type="checkbox" name="chat" checked> Chat</label>
+            <label><input type="checkbox" name="screenSharing" checked> Screen Sharing</label>
+            <label><input type="checkbox" name="cameraRequired"> Camera Required</label>
+          </div>
+        </fieldset>
+        <button type="submit" class="btn btn-primary" style="width:100%">Create Meeting</button>
+      </form>
+
+      <div id="meetingDetails" class="hidden" style="margin-top:2rem;padding-top:2rem;border-top:1px solid var(--glass-border)">
+        <h3>Meeting Created!</h3>
+        <p><strong>ID:</strong> <span id="detailId"></span></p>
+        <p><strong>Password:</strong> <span id="detailPwd"></span></p>
+        <p><strong>Link:</strong> <span id="detailLink"></span></p>
+        <button id="startMeetingBtn" class="btn btn-primary" style="margin-top:1rem">Start Meeting Now</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('Auth required');
+    let createdMeeting = null;
+
+    document.getElementById('createForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const alert = document.getElementById('alert');
+      const fd = new FormData(e.target);
+      try {
+        const data = await api.createMeeting({
+          title: fd.get('title') || 'Untitled Meeting',
+          scheduledAt: fd.get('scheduledAt') || null,
+          settings: {
+            waitingRoom: fd.get('waitingRoom') === 'on',
+            aiAnalytics: fd.get('aiAnalytics') === 'on',
+            recording: fd.get('recording') === 'on',
+            chat: fd.get('chat') === 'on',
+            screenSharing: fd.get('screenSharing') === 'on',
+            cameraRequired: fd.get('cameraRequired') === 'on'
+          }
+        });
+        createdMeeting = data.meeting;
+        document.getElementById('detailId').textContent = createdMeeting.meetingId;
+        document.getElementById('detailPwd').textContent = createdMeeting.password;
+        document.getElementById('detailLink').textContent = createdMeeting.link;
+        document.getElementById('meetingDetails').classList.remove('hidden');
+        showAlert(alert, 'Meeting created successfully!', 'success');
+      } catch (err) {
+        showAlert(alert, err.message);
+      }
+    });
+
+    document.getElementById('startMeetingBtn').addEventListener('click', () => {
+      if (createdMeeting) {
+        sessionStorage.setItem('meetmind_join', JSON.stringify({
+          meetingDbId: createdMeeting.id,
+          meetingId: createdMeeting.meetingId,
+          password: createdMeeting.password
+        }));
+        window.location.href = '/meeting.html';
+      }
+    });
+  </script>
+</body>
+</html>

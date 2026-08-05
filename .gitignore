@@ -1,0 +1,12 @@
+node_modules/
+backend/node_modules/
+__pycache__/
+*.pyc
+.env
+uploads/
+recordings/
+*.log
+.DS_Store
+dist/
+.vscode/
+*.pem

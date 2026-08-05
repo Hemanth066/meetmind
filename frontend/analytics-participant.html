@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Meeting Stats – MeetMind</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="/dashboard.html" class="logo">Meet<span>Mind</span></a>
+      <ul class="nav-links"><li><a href="/dashboard.html">← Dashboard</a></li></ul>
+    </div>
+  </nav>
+
+  <main class="dashboard container">
+    <div class="welcome-banner glass">
+      <div>
+        <h1 id="reportTitle">My Meeting Stats</h1>
+        <p id="reportMeta"></p>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card glass">
+        <div class="value" id="engagementScore">—</div>
+        <div class="label">Engagement Score</div>
+      </div>
+      <div class="stat-card glass">
+        <div class="value" id="speakingTime">0:00</div>
+        <div class="label">Speaking Time</div>
+      </div>
+      <div class="stat-card glass">
+        <div class="value" id="chatCount">0</div>
+        <div class="label">Chat Messages</div>
+      </div>
+      <div class="stat-card glass">
+        <div class="value" id="raiseHandCount">0</div>
+        <div class="label">Times Raised Hand</div>
+      </div>
+    </div>
+
+    <section class="glass" style="padding:2rem;margin-bottom:2rem">
+      <h2>Participation Details</h2>
+      <div class="metric-grid" style="margin-top:1.5rem">
+        <div class="metric-item"><div class="val" id="joinTime">—</div><div class="lbl">Join Time</div></div>
+        <div class="metric-item"><div class="val" id="leaveTime">—</div><div class="lbl">Leave Time</div></div>
+        <div class="metric-item"><div class="val" id="cameraStatus">—</div><div class="lbl">Camera Status</div></div>
+        <div class="metric-item"><div class="val" id="meetingDuration">—</div><div class="lbl">Meeting Duration</div></div>
+      </div>
+    </section>
+
+    <section class="glass" style="padding:2rem">
+      <h2>AI Observations</h2>
+      <div id="aiObservations" style="margin-top:1rem;color:var(--text-muted)"></div>
+    </section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('Auth required');
+    const meetingId = new URLSearchParams(window.location.search).get('id');
+    if (!meetingId) window.location.href = '/dashboard.html';
+
+    async function load() {
+      const data = await api.getParticipantAnalytics(meetingId);
+      const { meeting, participant: p } = data;
+
+      document.getElementById('reportTitle').textContent = meeting.title;
+      document.getElementById('reportMeta').textContent = formatDate(meeting.endedAt);
+      document.getElementById('engagementScore').textContent = (p.engagementScore || 0) + '%';
+      document.getElementById('speakingTime').textContent = formatSeconds(p.speakingTimeSeconds || 0);
+      document.getElementById('chatCount').textContent = p.chatMessageCount || 0;
+      document.getElementById('raiseHandCount').textContent = p.raiseHandCount || 0;
+      document.getElementById('joinTime').textContent = formatDate(p.joinTime);
+      document.getElementById('leaveTime').textContent = formatDate(p.leaveTime);
+      document.getElementById('cameraStatus').textContent = p.cameraExempt ? 'Exempt' : (p.cameraEnabled ? 'On' : 'Off');
+      document.getElementById('meetingDuration').textContent = formatDuration(meeting.duration);
+
+      const obsEl = document.getElementById('aiObservations');
+      if (!p.visualMetricsAvailable) {
+        obsEl.innerHTML = '<p>Visual metrics: <strong>Not Available</strong> (camera was off or exempt)</p>';
+      } else if (p.aiObservations?.note) {
+        obsEl.textContent = p.aiObservations.note;
+      } else {
+        const o = p.aiObservations || {};
+        obsEl.innerHTML = `
+          <div class="metric-grid">
+            <div class="metric-item"><div class="val">${Math.round(o.faceVisibility || 0)}%</div><div class="lbl">Face Visibility</div></div>
+            <div class="metric-item"><div class="val">${Math.round(o.headPoseForward || 0)}%</div><div class="lbl">Head Forward</div></div>
+            <div class="metric-item"><div class="val">${Math.round(o.eyeForward || 0)}%</div><div class="lbl">Eye Direction</div></div>
+            <div class="metric-item"><div class="val">${o.blinkCount || 0}</div><div class="lbl">Blinks</div></div>
+            <div class="metric-item"><div class="val">${o.smileCount || 0}</div><div class="lbl">Smiles</div></div>
+          </div>
+        `;
+      }
+    }
+
+    load().catch(err => alert(err.message));
+  </script>
+</body>
+</html>

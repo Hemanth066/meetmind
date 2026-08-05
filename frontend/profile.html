@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile – MeetMind</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="/dashboard.html" class="logo">Meet<span>Mind</span></a>
+      <ul class="nav-links">
+        <li><a href="/dashboard.html">Dashboard</a></li>
+        <li><a href="/profile.html" class="active">Profile</a></li>
+        <li><a href="/settings.html">Settings</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="dashboard container">
+    <div class="profile-header glass">
+      <div class="profile-avatar" id="avatar">?</div>
+      <div>
+        <h1 id="profileName">Loading...</h1>
+        <p id="profileEmail" style="color:var(--text-muted)"></p>
+        <label class="btn btn-outline btn-sm" style="margin-top:1rem;cursor:pointer">
+          Upload Photo
+          <input type="file" id="photoInput" accept="image/*" hidden>
+        </label>
+      </div>
+    </div>
+
+    <div class="glass" style="max-width:500px;padding:2rem">
+      <h2 style="margin-bottom:1.5rem">Edit Profile</h2>
+      <div id="alert" class="alert hidden"></div>
+      <form id="profileForm">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" class="form-control" name="name" id="nameInput" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </form>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('Auth required');
+
+    async function loadProfile() {
+      const data = await api.getProfile();
+      const u = data.user;
+      document.getElementById('profileName').textContent = u.name;
+      document.getElementById('profileEmail').textContent = u.email;
+      document.getElementById('nameInput').value = u.name;
+      const avatar = document.getElementById('avatar');
+      if (u.profilePicture) {
+        avatar.innerHTML = `<img src="${u.profilePicture}" alt="Avatar">`;
+      } else {
+        avatar.textContent = getInitials(u.name);
+      }
+    }
+
+    document.getElementById('profileForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const alert = document.getElementById('alert');
+      try {
+        const data = await api.updateProfile({ name: document.getElementById('nameInput').value });
+        api.setUser(data.user);
+        showAlert(alert, 'Profile updated!', 'success');
+        loadProfile();
+      } catch (err) {
+        showAlert(alert, err.message);
+      }
+    });
+
+    document.getElementById('photoInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const data = await api.uploadPicture(file);
+        api.setUser(data.user);
+        loadProfile();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    loadProfile();
+  </script>
+</body>
+</html>
