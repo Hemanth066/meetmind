@@ -162,7 +162,7 @@ async function init() {
     });
     vad.start(stream);
 
-    if (joinInfo.settings?.aiAnalytics && needCamera && camOn) {
+    if (needCamera && camOn) {
       frameCapture = new FrameCapture(document.querySelector('#tile-local video'), 2000);
       frameCapture.onFrame = (frame) => socket?.emit('analyze-frame', { frame });
       frameCapture.start();

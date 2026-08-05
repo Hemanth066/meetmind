@@ -35,7 +35,18 @@ class FrameAnalyzer:
         emotions = {"happy": 0, "neutral": 100, "sad": 0, "angry": 0, "surprised": 0}
         blink_count = self._blink_state[participant_id]["blink_count"]
         yawn_count = self._yawn_state[participant_id]["yawn_count"]
-        smile_count = self._smile_state[participant_id]["smile_frames"]
+        if not face_detected:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            try:
+                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+                if len(faces) > 0:
+                    face_detected = True
+                    face_visibility = 75.0
+                    head_pose_forward = 70.0
+                    eye_forward = 70.0
+            except Exception:
+                pass
 
         if face_detected and face_results.detections:
             det = face_results.detections[0]

@@ -384,6 +384,11 @@ exports.getParticipantAnalytics = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Meeting not found' });
     }
 
+    const isHost = meeting.hostId.toString() === req.user._id.toString();
+    if (!isHost) {
+      return res.status(403).json({ success: false, message: 'Access denied. Analytics are only visible to the meeting host.' });
+    }
+
     const participant = await Participant.findOne({
       meetingId: meeting._id,
       userId: req.user._id

@@ -291,35 +291,36 @@ function setupSocketHandlers(io) {
     });
 
     socket.on('analyze-frame', async ({ frame }) => {
-      const meeting = await Meeting.findById(socket.meetingDbId);
-      if (!meeting?.settings.aiAnalytics) return;
+      if (!socket.meetingDbId || !socket.participantId || !frame) return;
 
       const participant = await Participant.findById(socket.participantId);
-      if (!participant?.cameraEnabled || participant.cameraExempt) return;
+      if (!participant || participant.cameraExempt) return;
 
       const result = await analyzeFrame(frame, socket.participantId);
       if (!result) return;
 
-      const participantDoc = await Participant.findById(socket.participantId);
-      if (!participantDoc) return;
+      participant.visualMetricsAvailable = true;
+      participant.cameraEnabled = true;
+      participant.aiObservations.faceVisibility = result.face_visibility ?? 0;
+      participant.aiObservations.headPoseForward = result.head_pose_forward ?? 0;
+      participant.aiObservations.eyeForward = result.eye_forward ?? 0;
+      participant.aiObservations.blinkCount = result.blink_count ?? 0;
+      participant.aiObservations.yawnCount = result.yawn_count ?? 0;
+      participant.aiObservations.smileCount = result.smile_count ?? 0;
 
-      participantDoc.visualMetricsAvailable = true;
-      participantDoc.aiObservations.faceVisibility = result.face_visibility ?? 0;
-      participantDoc.aiObservations.headPoseForward = result.head_pose_forward ?? 0;
-      participantDoc.aiObservations.eyeForward = result.eye_forward ?? 0;
-      participantDoc.aiObservations.blinkCount = result.blink_count ?? 0;
-      participantDoc.aiObservations.yawnCount = result.yawn_count ?? 0;
-      participantDoc.aiObservations.smileCount = result.smile_count ?? 0;
+      if (result.engagement_estimate !== undefined) {
+        participant.engagementScore = result.engagement_estimate;
+      }
 
       if (result.emotions) {
         Object.keys(result.emotions).forEach((k) => {
-          if (participantDoc.aiObservations.emotions[k] !== undefined) {
-            participantDoc.aiObservations.emotions[k] = result.emotions[k];
+          if (participant.aiObservations.emotions[k] !== undefined) {
+            participant.aiObservations.emotions[k] = result.emotions[k];
           }
         });
       }
 
-      await participantDoc.save();
+      await participant.save();
 
       const room = getRoom(socket.meetingDbId);
       if (room && room.hostSocketId) {
