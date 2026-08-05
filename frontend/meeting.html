@@ -60,10 +60,13 @@
   </footer>
 
   <div id="cameraWarning" class="modal-overlay">
-    <div class="modal glass">
-      <h2>Camera Required</h2>
-      <p id="cameraWarningText">Camera is required for this meeting. Please turn it back ON within 1 minute.</p>
-      <p class="timer" id="graceTimer">1:00</p>
+    <div class="modal glass text-center" style="max-width:450px;padding:2.5rem 1.5rem">
+      <h2 style="color:var(--danger);margin-bottom:0.5rem">Camera Required</h2>
+      <p id="cameraWarningText" style="color:var(--text-muted);font-size:0.9rem">Camera is required for this meeting. Please turn it back ON within 1 minute.</p>
+      <p class="timer" id="graceTimer" style="font-size:2.2rem;font-weight:bold;margin:1rem 0;color:var(--danger)">1:00</p>
+      <div id="cameraWarningActions">
+        <button class="btn btn-primary btn-sm" id="stayInMeetingBtn">Stay in Meeting</button>
+      </div>
     </div>
   </div>
 

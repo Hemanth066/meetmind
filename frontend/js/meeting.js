@@ -112,21 +112,45 @@ function startTimer() {
   }, 1000);
 }
 
+let cameraOffViolationCount = 0;
+
 function startCameraGracePeriod() {
   if (camOn || cameraExempt) return;
-  document.getElementById('cameraWarning').classList.add('show');
-  let remaining = 60;
+
+  cameraOffViolationCount++;
+  const warningModal = document.getElementById('cameraWarning');
+  const warningText = document.getElementById('cameraWarningText');
   const graceEl = document.getElementById('graceTimer');
-  graceEl.textContent = '1:00';
+  const stayBtn = document.getElementById('stayInMeetingBtn');
+  
+  warningModal.classList.add('show');
+  
+  let remaining = 60;
+  if (cameraOffViolationCount === 1) {
+    remaining = 60;
+    warningText.textContent = 'Camera is required for this meeting. Please turn your camera back ON within 1 minute.';
+    graceEl.textContent = '1:00';
+    if (stayBtn) stayBtn.classList.remove('hidden');
+  } else {
+    remaining = 15;
+    warningText.textContent = 'Second camera-off violation! You must turn your camera ON within 15 seconds or you will be automatically removed.';
+    graceEl.textContent = '0:15';
+    if (stayBtn) stayBtn.classList.add('hidden');
+  }
+
   if (graceInterval) clearInterval(graceInterval);
   graceInterval = setInterval(() => {
     remaining--;
-    graceEl.textContent = `${Math.floor(remaining/60)}:${(remaining%60).toString().padStart(2,'0')}`;
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    graceEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
     if (remaining <= 0) {
       clearInterval(graceInterval);
       socket.emit('camera-grace-expired');
       cleanup();
-      alert('You were removed from the meeting because your camera remained off.');
+      alert(cameraOffViolationCount === 1 
+        ? 'You were removed from the meeting because your camera remained off after the 1-minute grace period.'
+        : 'You were removed from the meeting due to a second camera-off violation.');
       window.location.href = '/dashboard.html';
     }
   }, 1000);
@@ -136,6 +160,14 @@ function cancelCameraGrace() {
   document.getElementById('cameraWarning').classList.remove('show');
   if (graceInterval) clearInterval(graceInterval);
 }
+
+document.getElementById('stayInMeetingBtn')?.addEventListener('click', () => {
+  if (!camOn) {
+    document.getElementById('toggleCam').click();
+  } else {
+    cancelCameraGrace();
+  }
+});
 
 async function init() {
   try {
