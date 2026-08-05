@@ -293,6 +293,12 @@ function setupSocketHandlers(io) {
     socket.on('analyze-frame', async ({ frame }) => {
       if (!socket.meetingDbId || !socket.participantId || !frame) return;
 
+      const meeting = await Meeting.findById(socket.meetingDbId);
+      if (!meeting || meeting.status !== 'live') return;
+
+      const room = getRoom(socket.meetingDbId);
+      if (!room || !room.hostSocketId) return;
+
       const participant = await Participant.findById(socket.participantId);
       if (!participant || participant.cameraExempt) return;
 
@@ -322,14 +328,11 @@ function setupSocketHandlers(io) {
 
       await participant.save();
 
-      const room = getRoom(socket.meetingDbId);
-      if (room && room.hostSocketId) {
-        io.to(room.hostSocketId).emit('analytics-update', {
-          participantId: socket.participantId,
-          participantName: socket.user.name,
-          metrics: result
-        });
-      }
+      io.to(room.hostSocketId).emit('analytics-update', {
+        participantId: socket.participantId,
+        participantName: socket.user.name,
+        metrics: result
+      });
     });
 
     socket.on('recording-started', async () => {

@@ -196,6 +196,15 @@ async function init() {
       cameraRequired = data.meeting.settings.cameraRequired;
       startTimer();
 
+      if (needCamera && camOn) {
+        if (frameCapture) frameCapture.stop();
+        frameCapture = new FrameCapture(document.querySelector('#tile-local video'), 2000);
+        frameCapture.onFrame = (frame) => {
+          if (socket && camOn) socket.emit('analyze-frame', { frame });
+        };
+        frameCapture.start();
+      }
+
       for (const peer of data.peers) {
         remoteVideos.set(peer.socketId, peer.name);
         await connectToPeer(peer.socketId, true);
@@ -328,23 +337,44 @@ function refreshParticipants() {
 }
 
 const liveAnalyticsMap = new Map();
-function updateLiveAnalyticsUI(participantId, metrics) {
-  liveAnalyticsMap.set(participantId, metrics);
+function updateLiveAnalyticsUI(participantId, data) {
+  const metrics = data.metrics || data;
+  const participantName = data.participantName || 'Participant';
+  liveAnalyticsMap.set(participantId, { name: participantName, metrics });
   const container = document.getElementById('liveAnalyticsList');
   if (!container) return;
 
   let html = '';
-  liveAnalyticsMap.forEach((m, id) => {
+  liveAnalyticsMap.forEach((item) => {
+    const m = item.metrics;
+    const name = item.name;
+    const engagement = Math.round(m.engagement_estimate || 0);
+    const attention = m.attention_status || 'Analyzing...';
+    let badgeClass = 'badge-live';
+    if (attention.includes('Distracted') || attention.includes('Drowsy') || attention.includes('No Face')) {
+      badgeClass = 'badge-ended';
+    }
+
     html += `
-      <div class="glass" style="padding:0.75rem;margin-bottom:0.75rem;border-radius:10px">
-        <strong style="font-size:0.85rem;color:var(--primary)">Live AI Participant Stream</strong>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.5rem;font-size:0.8rem">
-          <div>Engagement: <strong>${Math.round(m.engagement_estimate || 0)}%</strong></div>
-          <div>Face Vis: <strong>${Math.round(m.face_visibility || 0)}%</strong></div>
-          <div>Head Pose: <strong>${Math.round(m.head_pose_forward || 0)}%</strong></div>
-          <div>Eye Focus: <strong>${Math.round(m.eye_forward || 0)}%</strong></div>
-          <div>Blinks: <strong>${m.blink_count || 0}</strong></div>
-          <div>Yawns: <strong>${m.yawn_count || 0}</strong></div>
+      <div class="glass" style="padding:0.85rem;margin-bottom:0.85rem;border-radius:12px;border:1px solid var(--glass-border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+          <strong style="font-size:0.9rem;color:var(--text)">${name}</strong>
+          <span class="badge ${badgeClass}" style="font-size:0.7rem">${attention}</span>
+        </div>
+        <div style="margin-bottom:0.5rem">
+          <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:0.25rem">
+            <span style="color:var(--text-muted)">Real-Time Engagement</span>
+            <strong>${engagement}%</strong>
+          </div>
+          <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden">
+            <div style="width:${engagement}%;height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));transition:width 0.5s"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;font-size:0.75rem;color:var(--text-muted)">
+          <div>👀 Eye Focus: <strong style="color:var(--text)">${Math.round(m.eye_forward || 0)}%</strong></div>
+          <div>👤 Face Vis: <strong style="color:var(--text)">${Math.round(m.face_visibility || 0)}%</strong></div>
+          <div>📐 Head Pose: <strong style="color:var(--text)">${Math.round(m.head_pose_forward || 0)}%</strong></div>
+          <div>😊 Smiles: <strong style="color:var(--text)">${m.smile_count || 0}</strong></div>
         </div>
       </div>
     `;
