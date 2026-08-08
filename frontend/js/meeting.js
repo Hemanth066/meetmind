@@ -115,27 +115,27 @@ function startTimer() {
 let cameraOffViolationCount = 0;
 
 function startCameraGracePeriod() {
-  if (camOn || cameraExempt) return;
+  if (isHost || camOn || cameraExempt) return;
 
   cameraOffViolationCount++;
   const warningModal = document.getElementById('cameraWarning');
   const warningText = document.getElementById('cameraWarningText');
   const graceEl = document.getElementById('graceTimer');
   const stayBtn = document.getElementById('stayInMeetingBtn');
-  
+
   warningModal.classList.add('show');
-  
-  let remaining = 60;
+
+  let remaining = 120;
   if (cameraOffViolationCount === 1) {
-    remaining = 60;
-    warningText.textContent = 'Camera is required for this meeting. Please turn your camera back ON within 1 minute.';
-    graceEl.textContent = '1:00';
+    remaining = 120;
+    warningText.textContent = 'Within 2 minutes the meeting will be cancelled for you, please turn on camera.';
+    graceEl.textContent = '2:00';
     if (stayBtn) stayBtn.classList.remove('hidden');
   } else {
     remaining = 15;
-    warningText.textContent = 'Second camera-off violation! You must turn your camera ON within 15 seconds or you will be automatically removed.';
+    warningText.textContent = 'Second camera-off violation! Turn on camera within 15 seconds or you will be automatically removed.';
     graceEl.textContent = '0:15';
-    if (stayBtn) stayBtn.classList.add('hidden');
+    if (stayBtn) stayBtn.classList.remove('hidden');
   }
 
   if (graceInterval) clearInterval(graceInterval);
@@ -149,7 +149,7 @@ function startCameraGracePeriod() {
       socket.emit('camera-grace-expired');
       cleanup();
       alert(cameraOffViolationCount === 1 
-        ? 'You were removed from the meeting because your camera remained off after the 1-minute grace period.'
+        ? 'You were removed from the meeting because your camera remained off after the 2-minute grace period.'
         : 'You were removed from the meeting due to a second camera-off violation.');
       window.location.href = '/dashboard.html';
     }
@@ -164,9 +164,18 @@ function cancelCameraGrace() {
 document.getElementById('stayInMeetingBtn')?.addEventListener('click', () => {
   if (!camOn) {
     document.getElementById('toggleCam').click();
-  } else {
-    cancelCameraGrace();
   }
+  cancelCameraGrace();
+});
+
+document.getElementById('enableMediaBtn')?.addEventListener('click', () => {
+  if (!micOn) document.getElementById('toggleMic').click();
+  if (!camOn) document.getElementById('toggleCam').click();
+  document.getElementById('entryMediaModal').classList.remove('show');
+});
+
+document.getElementById('dismissMediaBtn')?.addEventListener('click', () => {
+  document.getElementById('entryMediaModal').classList.remove('show');
 });
 
 async function init() {
@@ -227,6 +236,10 @@ async function init() {
       isHost = data.isHost;
       cameraRequired = data.meeting.settings.cameraRequired;
       startTimer();
+
+      if (!isHost && (!camOn || !micOn)) {
+        document.getElementById('entryMediaModal').classList.add('show');
+      }
 
       if (needCamera && camOn) {
         if (frameCapture) frameCapture.stop();
@@ -462,7 +475,7 @@ document.getElementById('toggleCam').addEventListener('click', () => {
   document.getElementById('toggleCam').classList.toggle('off', !camOn);
   socket?.emit('media-state', { cameraOn: camOn, micOn });
 
-  if (cameraRequired && !cameraExempt && !camOn) {
+  if (!isHost && cameraRequired && !cameraExempt && !camOn) {
     socket?.emit('camera-disabled-warning');
     startCameraGracePeriod();
   } else if (camOn) {

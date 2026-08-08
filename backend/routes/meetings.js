@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(protect);
 
 router.post('/create', meetingController.createMeeting);
+router.post('/', meetingController.createMeeting);
 router.post('/join', meetingController.joinMeeting);
 router.get('/history', meetingController.getMeetingHistory);
 router.get('/upcoming', meetingController.getUpcomingMeetings);

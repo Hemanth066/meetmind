@@ -207,13 +207,15 @@ function setupSocketHandlers(io) {
     });
 
     socket.on('camera-disabled-warning', async () => {
+      if (socket.isHost) return;
       socket.emit('camera-warning', {
-        message: 'Camera is required for this meeting. Please turn it back ON within 1 minute.',
-        gracePeriodMs: 60000
+        message: 'Camera is required for this meeting. Turn it ON within 2 minutes for 1st warning or 15s for 2nd warning.',
+        gracePeriodMs: 120000
       });
     });
 
     socket.on('camera-grace-expired', async () => {
+      if (socket.isHost) return;
       const meeting = await Meeting.findById(socket.meetingDbId);
       if (!meeting?.settings.cameraRequired) return;
 
@@ -225,11 +227,13 @@ function setupSocketHandlers(io) {
       await participant.save();
 
       socket.emit('removed-from-meeting', {
-        reason: 'Camera remained off after grace period'
+        reason: 'You were automatically removed from the meeting due to camera-off grace period expiration.'
       });
 
       const room = getRoom(socket.meetingDbId);
-      room.participants.delete(socket.id);
+      if (room) {
+        room.participants.delete(socket.id);
+      }
       socket.leave(socket.meetingDbId);
 
       await notifyHost(

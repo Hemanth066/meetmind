@@ -35,6 +35,7 @@ class FrameAnalyzer:
         emotions = {"happy": 0, "neutral": 100, "sad": 0, "angry": 0, "surprised": 0}
         blink_count = self._blink_state[participant_id]["blink_count"]
         yawn_count = self._yawn_state[participant_id]["yawn_count"]
+        smile_count = self._smile_state[participant_id]["smile_frames"]
         if not face_detected:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             try:
