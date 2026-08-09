@@ -28,7 +28,7 @@ class FrameAnalyzer:
         face_results = self.face_detection.process(rgb)
         mesh_results = self.face_mesh.process(rgb)
 
-        face_detected = bool(face_results.detections)
+        face_detected = bool(face_results.detections) or bool(mesh_results.multi_face_landmarks)
         face_visibility = 0.0
         head_pose_forward = 0.0
         eye_forward = 0.0
@@ -49,10 +49,12 @@ class FrameAnalyzer:
             except Exception:
                 pass
 
-        if face_detected and face_results.detections:
-            det = face_results.detections[0]
-            bbox = det.location_data.relative_bounding_box
-            face_visibility = min(100.0, det.score[0] * 100)
+        if face_detected:
+            if face_results.detections:
+                det = face_results.detections[0]
+                face_visibility = min(100.0, float(det.score[0]) * 100)
+            elif mesh_results.multi_face_landmarks:
+                face_visibility = 85.0
 
             nose = self._landmark(mesh_results, 1)
             left_eye = self._landmark(mesh_results, 33)
@@ -64,9 +66,13 @@ class FrameAnalyzer:
                 eye_center_x = (left_eye[0] + right_eye[0]) / 2
                 eye_offset = abs(nose[0] - eye_center_x)
                 eye_forward = max(0.0, 100.0 - eye_offset * 400)
+            elif face_detected:
+                eye_forward = 75.0
 
             if nose and chin and forehead:
                 head_pose_forward = self._estimate_head_forward(nose, chin, forehead)
+            elif face_detected:
+                head_pose_forward = 75.0
 
             if mesh_results.multi_face_landmarks:
                 lm = mesh_results.multi_face_landmarks[0].landmark

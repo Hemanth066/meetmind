@@ -300,9 +300,6 @@ function setupSocketHandlers(io) {
       const meeting = await Meeting.findById(socket.meetingDbId);
       if (!meeting || meeting.status !== 'live') return;
 
-      const room = getRoom(socket.meetingDbId);
-      if (!room || !room.hostSocketId) return;
-
       const participant = await Participant.findById(socket.participantId);
       if (!participant || participant.cameraExempt) return;
 
@@ -332,11 +329,14 @@ function setupSocketHandlers(io) {
 
       await participant.save();
 
-      io.to(room.hostSocketId).emit('analytics-update', {
-        participantId: socket.participantId,
-        participantName: socket.user.name,
-        metrics: result
-      });
+      const room = getRoom(socket.meetingDbId);
+      if (room && room.hostSocketId) {
+        io.to(room.hostSocketId).emit('analytics-update', {
+          participantId: socket.participantId,
+          participantName: socket.user.name,
+          metrics: result
+        });
+      }
     });
 
     socket.on('recording-started', async () => {
