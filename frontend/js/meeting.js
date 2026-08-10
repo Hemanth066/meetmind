@@ -32,12 +32,28 @@ const meetingTimer = document.getElementById('meetingTimer');
 const meetingIdDisplay = document.getElementById('meetingIdDisplay');
 
 document.getElementById('meetingIdDisplay').textContent = `ID: ${joinInfo.meetingId}`;
-if (isHost) {
-  document.getElementById('endMeetingBtn').classList.remove('hidden');
-  document.getElementById('toggleRecord').classList.remove('hidden');
-  document.getElementById('requestsTab').classList.remove('hidden');
-  document.getElementById('analyticsTab').classList.remove('hidden');
+
+function applyHostPermissions(hostState) {
+  isHost = !!hostState;
+  const endBtn = document.getElementById('endMeetingBtn');
+  const recBtn = document.getElementById('toggleRecord');
+  const reqTab = document.getElementById('requestsTab');
+  const aiTab = document.getElementById('analyticsTab');
+
+  if (isHost) {
+    if (endBtn) endBtn.classList.remove('hidden');
+    if (recBtn) recBtn.classList.remove('hidden');
+    if (reqTab) reqTab.classList.remove('hidden');
+    if (aiTab) aiTab.classList.remove('hidden');
+  } else {
+    if (endBtn) endBtn.classList.add('hidden');
+    if (recBtn) recBtn.classList.add('hidden');
+    if (reqTab) reqTab.classList.add('hidden');
+    if (aiTab) aiTab.classList.add('hidden');
+  }
 }
+
+applyHostPermissions(isHost);
 
 // Tabs
 document.querySelectorAll('.sidebar-tabs button').forEach(btn => {
@@ -241,7 +257,7 @@ async function init() {
     socket.on('room-joined', async (data) => {
       document.getElementById('waitingForHostOverlay').classList.remove('show');
       meetingTitle.textContent = data.meeting.title;
-      isHost = data.isHost;
+      applyHostPermissions(data.isHost);
       cameraRequired = data.meeting.settings.cameraRequired;
       startTimer();
 

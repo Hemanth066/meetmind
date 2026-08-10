@@ -91,7 +91,9 @@
         sessionStorage.setItem('meetmind_join', JSON.stringify({
           meetingDbId: createdMeeting.id,
           meetingId: createdMeeting.meetingId,
-          password: createdMeeting.password
+          password: createdMeeting.password,
+          isHost: true,
+          settings: createdMeeting.settings
         }));
         window.location.href = '/meeting.html';
       }

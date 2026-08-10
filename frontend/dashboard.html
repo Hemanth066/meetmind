@@ -80,6 +80,15 @@
       window.location.href = '/login.html';
     });
 
+    window.joinFromDashboard = function(meetingDbId, meetingId, isHost) {
+      sessionStorage.setItem('meetmind_join', JSON.stringify({
+        meetingDbId,
+        meetingId,
+        isHost: !!isHost
+      }));
+      window.location.href = '/meeting.html';
+    };
+
     function renderMeetings(container, meetings, emptyMsg) {
       if (!meetings.length) {
         container.innerHTML = `<div class="empty-state glass">${emptyMsg}</div>`;
@@ -91,10 +100,11 @@
             <strong>${m.title || 'Untitled Meeting'}</strong>
             <div class="meta">ID: ${m.meetingId} · ${formatDate(m.startedAt || m.scheduledAt)}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:0.75rem">
+          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
             <span class="badge badge-${m.status === 'live' ? 'live' : 'ended'}">${m.status}</span>
             ${m.role === 'host' ? '<span class="badge badge-host">Host</span>' : ''}
-            ${m.role === 'host' ? `<a href="/analytics-host.html?id=${m.id}" class="btn btn-sm btn-primary">📊 Analytics</a>` : ''}
+            ${m.status !== 'ended' ? `<button class="btn btn-sm btn-primary" onclick="joinFromDashboard('${m.id}', '${m.meetingId}', ${m.role === 'host'})">${m.role === 'host' ? '🎥 Start / Join' : '🔗 Join'}</button>` : ''}
+            ${m.role === 'host' ? `<a href="/analytics-host.html?id=${m.id}" class="btn btn-sm btn-outline">📊 Analytics</a>` : ''}
           </div>
         </div>
       `).join('');
