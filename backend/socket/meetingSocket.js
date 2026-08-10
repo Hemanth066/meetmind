@@ -308,15 +308,28 @@ function setupSocketHandlers(io) {
 
       participant.visualMetricsAvailable = true;
       participant.cameraEnabled = true;
-      participant.aiObservations.faceVisibility = result.face_visibility ?? 0;
-      participant.aiObservations.headPoseForward = result.head_pose_forward ?? 0;
-      participant.aiObservations.eyeForward = result.eye_forward ?? 0;
-      participant.aiObservations.blinkCount = result.blink_count ?? 0;
-      participant.aiObservations.yawnCount = result.yawn_count ?? 0;
-      participant.aiObservations.smileCount = result.smile_count ?? 0;
+
+      const count = (participant.aiObservations.frameCount || 0) + 1;
+      const oldFace = participant.aiObservations.faceVisibility || 0;
+      const oldHead = participant.aiObservations.headPoseForward || 0;
+      const oldEye = participant.aiObservations.eyeForward || 0;
+
+      const newFace = result.face_visibility ?? (result.face_detected ? 85 : 0);
+      const newHead = result.head_pose_forward ?? (result.face_detected ? 80 : 0);
+      const newEye = result.eye_forward ?? (result.face_detected ? 80 : 0);
+
+      participant.aiObservations.frameCount = count;
+      participant.aiObservations.faceVisibility = Math.round(((oldFace * (count - 1)) + newFace) / count);
+      participant.aiObservations.headPoseForward = Math.round(((oldHead * (count - 1)) + newHead) / count);
+      participant.aiObservations.eyeForward = Math.round(((oldEye * (count - 1)) + newEye) / count);
+      participant.aiObservations.blinkCount = result.blink_count ?? participant.aiObservations.blinkCount;
+      participant.aiObservations.yawnCount = result.yawn_count ?? participant.aiObservations.yawnCount;
+      participant.aiObservations.smileCount = result.smile_count ?? participant.aiObservations.smileCount;
 
       if (result.engagement_estimate !== undefined) {
-        participant.engagementScore = result.engagement_estimate;
+        // Smooth engagement score update
+        const prevScore = participant.engagementScore || 0;
+        participant.engagementScore = Math.round(prevScore === 0 ? result.engagement_estimate : (prevScore * 0.4 + result.engagement_estimate * 0.6));
       }
 
       if (result.emotions) {
@@ -327,6 +340,7 @@ function setupSocketHandlers(io) {
         });
       }
 
+      participant.markModified('aiObservations');
       await participant.save();
 
       const room = getRoom(socket.meetingDbId);

@@ -36,16 +36,16 @@ function calculateEngagementScore(participant, meetingDurationSeconds, totalSpea
   const chatScore = Math.min(100, participant.chatMessageCount * 10);
   const raiseHandScore = Math.min(100, participant.raiseHandCount * 20);
 
-  let visualAvailable = participant.visualMetricsAvailable && !participant.cameraExempt;
-  let faceScore = null;
-  let headScore = null;
-  let eyeScore = null;
+  let visualAvailable = (participant.visualMetricsAvailable || (participant.cameraEnabled && (participant.aiObservations?.frameCount > 0 || participant.aiObservations?.faceVisibility > 0))) && !participant.cameraExempt;
+  let faceScore = 0;
+  let headScore = 0;
+  let eyeScore = 0;
 
   if (visualAvailable && participant.aiObservations) {
     const obs = participant.aiObservations;
-    faceScore = obs.faceVisibility || 0;
-    headScore = obs.headPoseForward || 0;
-    eyeScore = obs.eyeForward || 0;
+    faceScore = obs.faceVisibility || 80;
+    headScore = obs.headPoseForward || 80;
+    eyeScore = obs.eyeForward || 80;
   }
 
   let score;
@@ -58,6 +58,11 @@ function calculateEngagementScore(participant, meetingDurationSeconds, totalSpea
       weights.eyeDirection * eyeScore +
       weights.chat * chatScore +
       weights.raiseHand * raiseHandScore;
+    
+    // If participant is on camera attending the meeting attentively, baseline score should reflect attendance & face score
+    if (score < 40 && faceScore > 50) {
+      score = Math.max(score, Math.round(faceScore * 0.7 + attendanceScore * 0.3));
+    }
   } else {
     const renormalized =
       weights.attendance + weights.speaking + weights.chat + weights.raiseHand;

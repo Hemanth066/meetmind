@@ -10,12 +10,13 @@ class FrameAnalyzer:
     def __init__(self):
         self.mp_face = mp.solutions.face_detection
         self.mp_face_mesh = mp.solutions.face_mesh
-        self.face_detection = self.mp_face.FaceDetection(min_detection_confidence=0.5)
+        self.face_detection = self.mp_face.FaceDetection(min_detection_confidence=0.4)
         self.face_mesh = self.mp_face_mesh.FaceMesh(
+            static_image_mode=True,
             max_num_faces=1,
             refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
+            min_detection_confidence=0.4,
+            min_tracking_confidence=0.4,
         )
         self._blink_state = defaultdict(lambda: {"ear_history": [], "blink_count": 0})
         self._yawn_state = defaultdict(lambda: {"mar_history": [], "yawn_count": 0})
@@ -28,7 +29,9 @@ class FrameAnalyzer:
         face_results = self.face_detection.process(rgb)
         mesh_results = self.face_mesh.process(rgb)
 
-        face_detected = bool(face_results.detections) or bool(mesh_results.multi_face_landmarks)
+        has_detection = bool(face_results.detections)
+        has_mesh = bool(mesh_results.multi_face_landmarks)
+        face_detected = has_detection or has_mesh
         face_visibility = 0.0
         head_pose_forward = 0.0
         eye_forward = 0.0
@@ -36,6 +39,7 @@ class FrameAnalyzer:
         blink_count = self._blink_state[participant_id]["blink_count"]
         yawn_count = self._yawn_state[participant_id]["yawn_count"]
         smile_count = self._smile_state[participant_id]["smile_frames"]
+
         if not face_detected:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             try:
@@ -43,18 +47,18 @@ class FrameAnalyzer:
                 faces = face_cascade.detectMultiScale(gray, 1.1, 4)
                 if len(faces) > 0:
                     face_detected = True
-                    face_visibility = 75.0
-                    head_pose_forward = 70.0
-                    eye_forward = 70.0
+                    face_visibility = 80.0
+                    head_pose_forward = 75.0
+                    eye_forward = 75.0
             except Exception:
                 pass
 
         if face_detected:
-            if face_results.detections:
+            if has_mesh:
+                face_visibility = 95.0
+            elif has_detection:
                 det = face_results.detections[0]
-                face_visibility = min(100.0, float(det.score[0]) * 100)
-            elif mesh_results.multi_face_landmarks:
-                face_visibility = 85.0
+                face_visibility = min(100.0, max(75.0, float(det.score[0]) * 100))
 
             nose = self._landmark(mesh_results, 1)
             left_eye = self._landmark(mesh_results, 33)
@@ -65,16 +69,16 @@ class FrameAnalyzer:
             if nose and left_eye and right_eye:
                 eye_center_x = (left_eye[0] + right_eye[0]) / 2
                 eye_offset = abs(nose[0] - eye_center_x)
-                eye_forward = max(0.0, 100.0 - eye_offset * 400)
+                eye_forward = max(30.0, min(100.0, 100.0 - eye_offset * 350))
             elif face_detected:
-                eye_forward = 75.0
+                eye_forward = eye_forward or 80.0
 
             if nose and chin and forehead:
                 head_pose_forward = self._estimate_head_forward(nose, chin, forehead)
             elif face_detected:
-                head_pose_forward = 75.0
+                head_pose_forward = head_pose_forward or 80.0
 
-            if mesh_results.multi_face_landmarks:
+            if has_mesh:
                 lm = mesh_results.multi_face_landmarks[0].landmark
                 ear = self._eye_aspect_ratio(lm)
                 mar = self._mouth_aspect_ratio(lm)

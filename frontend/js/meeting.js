@@ -203,11 +203,19 @@ async function init() {
     });
     vad.start(stream);
 
-    if (needCamera && camOn) {
-      frameCapture = new FrameCapture(document.querySelector('#tile-local video'), 2000);
-      frameCapture.onFrame = (frame) => socket?.emit('analyze-frame', { frame });
+    function startFrameCapture() {
+      if (!needCamera || !camOn || cameraExempt) return;
+      if (frameCapture) frameCapture.stop();
+      const videoEl = document.querySelector('#tile-local video');
+      if (!videoEl) return;
+      frameCapture = new FrameCapture(videoEl, 2000);
+      frameCapture.onFrame = (frame) => {
+        if (socket && camOn) socket.emit('analyze-frame', { frame });
+      };
       frameCapture.start();
     }
+
+    startFrameCapture();
 
     socket = io({ auth: { token: api.getToken() } });
 
@@ -241,14 +249,7 @@ async function init() {
         document.getElementById('entryMediaModal').classList.add('show');
       }
 
-      if (needCamera && camOn) {
-        if (frameCapture) frameCapture.stop();
-        frameCapture = new FrameCapture(document.querySelector('#tile-local video'), 2000);
-        frameCapture.onFrame = (frame) => {
-          if (socket && camOn) socket.emit('analyze-frame', { frame });
-        };
-        frameCapture.start();
-      }
+      startFrameCapture();
 
       for (const peer of data.peers) {
         remoteVideos.set(peer.socketId, peer.name);
@@ -480,8 +481,8 @@ document.getElementById('toggleCam').addEventListener('click', () => {
     startCameraGracePeriod();
   } else if (camOn) {
     cancelCameraGrace();
-    if (frameCapture && joinInfo.settings?.aiAnalytics) {
-      frameCapture.start();
+    if (joinInfo.settings?.aiAnalytics !== false) {
+      if (frameCapture) frameCapture.start();
     }
   } else {
     frameCapture?.stop();

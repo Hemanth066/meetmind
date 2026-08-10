@@ -7,7 +7,9 @@
     "install:all": "npm install --prefix backend && pip install -r ml-service/requirements.txt",
     "dev": "npm run dev --prefix backend",
     "dev:ml": "cd ml-service && python -m uvicorn main:app --reload --port 8001",
-    "start": "npm start --prefix backend"
+    "dev:all": "node start-all.js",
+    "start": "npm start --prefix backend",
+    "start:all": "node start-all.js"
   },
   "keywords": ["webrtc", "meetings", "ai", "analytics"],
   "license": "MIT"

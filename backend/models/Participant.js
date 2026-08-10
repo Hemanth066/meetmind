@@ -24,6 +24,7 @@ const participantSchema = new mongoose.Schema(
       blinkCount: { type: Number, default: 0 },
       yawnCount: { type: Number, default: 0 },
       smileCount: { type: Number, default: 0 },
+      frameCount: { type: Number, default: 0 },
       emotions: {
         happy: { type: Number, default: 0 },
         neutral: { type: Number, default: 0 },
