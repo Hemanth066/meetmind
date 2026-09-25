@@ -342,16 +342,23 @@ function setupSocketHandlers(io) {
       }
 
       participant.markModified('aiObservations');
-      await participant.save();
+      participant.save().catch(e => console.warn('[meetingSocket] Save error:', e.message));
 
       const room = getRoom(socket.meetingDbId);
-      if (room && room.hostSocketId) {
-        io.to(room.hostSocketId).emit('analytics-update', {
-          participantId: socket.participantId,
-          participantName: socket.user.name,
-          metrics: result
-        });
+      if (socket.isHost && room) {
+        room.hostSocketId = socket.id;
       }
+
+      const payload = {
+        participantId: socket.participantId,
+        participantName: socket.user.name,
+        metrics: result
+      };
+
+      if (room && room.hostSocketId) {
+        io.to(room.hostSocketId).emit('analytics-update', payload);
+      }
+      socket.emit('analytics-update', payload);
     });
 
     socket.on('recording-started', async () => {
