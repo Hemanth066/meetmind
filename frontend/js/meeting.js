@@ -85,8 +85,9 @@ function addVideoTile(id, stream, name, isLocal = false) {
     });
   }
   const displayName = name || (isLocal ? user.name : (remoteVideos.get(id) || 'Participant'));
-  tile.querySelector('.name-tag').textContent = displayName + (isLocal ? ' (You)' : '');
-  if (isLocal && !frameCapture) frameCapture = new FrameCapture(video, 2000);
+  if (isLocal) {
+    setTimeout(startFrameCapture, 300);
+  }
 }
 
 function removeVideoTile(id) {
@@ -217,18 +218,23 @@ async function init() {
     vad = new VoiceActivityDetector((seconds) => {
       socket?.emit('speaking-time', { seconds });
     });
-    vad.start(stream);
-
     function startFrameCapture() {
-      if (!needCamera || !camOn || cameraExempt) return;
-      if (frameCapture) frameCapture.stop();
+      if (cameraExempt) return;
       const videoEl = document.querySelector('#tile-local video');
       if (!videoEl) return;
+
+      if (frameCapture) frameCapture.stop();
+
       frameCapture = new FrameCapture(videoEl, 2000);
       frameCapture.onFrame = (frame) => {
-        if (socket && camOn) socket.emit('analyze-frame', { frame });
+        if (socket && camOn) {
+          socket.emit('analyze-frame', { frame });
+        }
       };
-      frameCapture.start();
+
+      if (camOn) {
+        frameCapture.start();
+      }
     }
 
     startFrameCapture();
@@ -498,7 +504,7 @@ document.getElementById('toggleCam').addEventListener('click', () => {
   } else if (camOn) {
     cancelCameraGrace();
     if (joinInfo.settings?.aiAnalytics !== false) {
-      if (frameCapture) frameCapture.start();
+      startFrameCapture();
     }
   } else {
     frameCapture?.stop();
