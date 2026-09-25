@@ -5,20 +5,25 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-mp_face = mp.solutions.face_detection
-mp_face_mesh = mp.solutions.face_mesh
-
 
 class FrameAnalyzer:
     def __init__(self):
-        self.face_detection = mp_face.FaceDetection(min_detection_confidence=0.3)
-        self.face_mesh = mp_face_mesh.FaceMesh(
-            static_image_mode=False,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.3,
-            min_tracking_confidence=0.3,
-        )
+        self.face_detection = None
+        self.face_mesh = None
+
+        try:
+            mp_face = mp.solutions.face_detection
+            mp_face_mesh = mp.solutions.face_mesh
+            self.face_detection = mp_face.FaceDetection(min_detection_confidence=0.3)
+            self.face_mesh = mp_face_mesh.FaceMesh(
+                static_image_mode=False,
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.3,
+                min_tracking_confidence=0.3,
+            )
+        except Exception as e:
+            print(f"[FrameAnalyzer] Notice: MediaPipe model init notice: {e}")
 
         self._blink_state = defaultdict(lambda: {"ear_history": [], "blink_count": 0})
         self._yawn_state = defaultdict(lambda: {
@@ -33,11 +38,20 @@ class FrameAnalyzer:
         rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         h, w = image.shape[:2]
 
-        face_results = self.face_detection.process(rgb)
-        mesh_results = self.face_mesh.process(rgb)
+        has_detection = False
+        has_mesh = False
+        face_results = None
+        mesh_results = None
 
-        has_detection = bool(face_results.detections)
-        has_mesh = bool(mesh_results.multi_face_landmarks)
+        if self.face_detection and self.face_mesh:
+            try:
+                face_results = self.face_detection.process(rgb)
+                mesh_results = self.face_mesh.process(rgb)
+                has_detection = bool(face_results and face_results.detections)
+                has_mesh = bool(mesh_results and mesh_results.multi_face_landmarks)
+            except Exception as e:
+                print(f"[FrameAnalyzer] Frame process notice: {e}")
+
         face_detected = has_detection or has_mesh
         face_visibility = 0.0
         head_pose_forward = 0.0
