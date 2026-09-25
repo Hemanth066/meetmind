@@ -41,7 +41,11 @@ function startFrameCapture() {
   frameCapture = new FrameCapture(videoEl, 2000);
   frameCapture.onFrame = (frame) => {
     if (socket && camOn) {
-      socket.emit('analyze-frame', { frame });
+      socket.emit('analyze-frame', {
+        frame,
+        meetingDbId: joinInfo.meetingDbId,
+        participantId: joinInfo.participantId
+      });
     }
   };
 
