@@ -6,7 +6,7 @@ module.exports = {
   jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5000',
-  mlServiceUrl: process.env.ML_SERVICE_URL || 'http://localhost:8001',
+  mlServiceUrl: (process.env.ML_SERVICE_URL || 'http://localhost:8001').replace(/\/+$/, ''),
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
   smtp: {
     host: process.env.SMTP_HOST,
