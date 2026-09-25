@@ -295,6 +295,7 @@ function setupSocketHandlers(io) {
     });
 
     socket.on('analyze-frame', async ({ frame }) => {
+      console.log('[AI Pipeline] Frame received from browser');
       if (!socket.meetingDbId || !socket.participantId || !frame) return;
 
       const meeting = await Meeting.findById(socket.meetingDbId);
@@ -433,7 +434,7 @@ function setupSocketHandlers(io) {
       await Participant.findByIdAndUpdate(socket.participantId, {
         leaveTime: new Date(),
         status: 'left'
-      }).catch(() => {});
+      }).catch(() => { });
 
       const meeting = await Meeting.findById(socket.meetingDbId);
       if (meeting && !socket.isHost) {

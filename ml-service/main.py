@@ -54,20 +54,39 @@ def health():
 def analyze_frame(req: FrameRequest):
     try:
         image_data = req.frame
+
         if "," in image_data:
             image_data = image_data.split(",", 1)[1]
-        raw = base64.b64decode(image_data)
-        arr = np.frombuffer(raw, dtype=np.uint8)
-        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        if img is None:
-            raise HTTPException(status_code=400, detail="Invalid image data")
 
-        result = frame_analyzer.analyze(img, req.participant_id or "unknown")
+        raw = base64.b64decode(image_data)
+
+        arr = np.frombuffer(raw, dtype=np.uint8)
+
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
+        if img is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid image data"
+            )
+
+        result = frame_analyzer.analyze(
+            img,
+            req.participant_id or "unknown"
+        )
+
         return result
+
     except HTTPException:
         raise
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
 
 @app.post("/analyze/meeting")

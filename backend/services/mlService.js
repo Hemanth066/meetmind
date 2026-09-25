@@ -3,13 +3,22 @@ const config = require('../config');
 
 async function analyzeFrame(frameBase64, participantId) {
   try {
-    const { data } = await axios.post(`${config.mlServiceUrl}/analyze/frame`, {
-      frame: frameBase64,
-      participant_id: participantId
-    }, { timeout: 10000 });
+    console.log('[AI Pipeline] Sending frame to Python ML service...');
+
+    const { data } = await axios.post(
+      `${config.mlServiceUrl}/analyze/frame`,
+      {
+        frame: frameBase64,
+        participant_id: participantId
+      },
+      { timeout: 10000 }
+    );
+
+    console.log('[AI Pipeline] Python ML response received:', data);
+
     return data;
   } catch (err) {
-    console.error('ML frame analysis error:', err.message);
+    console.error('[AI Pipeline] ML frame analysis error:', err.message);
     return null;
   }
 }

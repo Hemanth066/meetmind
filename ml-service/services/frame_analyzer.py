@@ -1,3 +1,4 @@
+import starlette
 import math
 from collections import defaultdict
 
@@ -19,7 +20,11 @@ class FrameAnalyzer:
             min_tracking_confidence=0.4,
         )
         self._blink_state = defaultdict(lambda: {"ear_history": [], "blink_count": 0})
-        self._yawn_state = defaultdict(lambda: {"mar_history": [], "yawn_count": 0})
+        self._yawn_state = defaultdict(lambda: {
+            "mar_history": [],
+            "yawn_count": 0,
+            "yawn_active": False
+        })
         self._smile_state = defaultdict(lambda: {"smile_frames": 0})
 
     def analyze(self, image: np.ndarray, participant_id: str) -> dict:
@@ -162,11 +167,25 @@ class FrameAnalyzer:
 
     def _update_yawns(self, participant_id, mar):
         state = self._yawn_state[participant_id]
+
+        # Keep recent mouth measurements
         state["mar_history"].append(mar)
+
         if len(state["mar_history"]) > 5:
             state["mar_history"].pop(0)
-        if mar > 0.6:
+
+        # Mouth is considered open
+        mouth_open = mar > 0.6
+
+        # Count only when mouth changes from closed -> open
+        if mouth_open and not state["yawn_active"]:
             state["yawn_count"] += 1
+            state["yawn_active"] = True
+
+        # Reset when mouth closes
+        elif not mouth_open:
+            state["yawn_active"] = False
+
         return state["yawn_count"]
 
     def _estimate_emotions(self, landmarks, smiling, mar):

@@ -28,7 +28,7 @@ class WebRTCManager {
     if (typeof navigator !== 'undefined' && !navigator.mediaDevices.getUserMedia) {
       const legacyGetUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
       if (legacyGetUserMedia) {
-        navigator.mediaDevices.getUserMedia = function(constraints) {
+        navigator.mediaDevices.getUserMedia = function (constraints) {
           return new Promise((resolve, reject) => {
             legacyGetUserMedia.call(navigator, constraints, resolve, reject);
           });
@@ -178,7 +178,7 @@ class WebRTCManager {
   removePeer(socketId) {
     const peer = this.peers.get(socketId);
     if (peer) {
-      try { peer.pc.close(); } catch {}
+      try { peer.pc.close(); } catch { }
       this.peers.delete(socketId);
     }
   }
@@ -236,24 +236,89 @@ class FrameCapture {
     this.canvas = document.createElement('canvas');
     this.timer = null;
     this.onFrame = null;
+    this.isCapturing = false;
   }
 
   start() {
+    // Prevent multiple capture timers
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+
+    if (!this.videoEl) {
+      console.error('[FrameCapture] Video element not found');
+      return;
+    }
+
+    console.log('[FrameCapture] Starting frame capture...');
+    console.log('[FrameCapture] Interval:', this.intervalMs, 'ms');
+
+    this.isCapturing = true;
+
     this.timer = setInterval(() => {
-      if (!this.videoEl || this.videoEl.readyState < 2) return;
+      if (!this.isCapturing) return;
+
+      if (!this.videoEl) {
+        console.error('[FrameCapture] Video element disappeared');
+        return;
+      }
+
+      if (this.videoEl.readyState < 2) {
+        console.log('[FrameCapture] Video not ready yet. readyState:', this.videoEl.readyState);
+        return;
+      }
+
       const w = this.videoEl.videoWidth;
       const h = this.videoEl.videoHeight;
-      if (!w || !h) return;
+
+      if (!w || !h) {
+        console.log('[FrameCapture] Video dimensions not available');
+        return;
+      }
+
       this.canvas.width = w;
       this.canvas.height = h;
+
       const ctx = this.canvas.getContext('2d');
+
+      if (!ctx) {
+        console.error('[FrameCapture] Could not get canvas context');
+        return;
+      }
+
+      // Capture current video frame
       ctx.drawImage(this.videoEl, 0, 0, w, h);
+
+      // Convert frame to JPEG
       const dataUrl = this.canvas.toDataURL('image/jpeg', 0.6);
-      if (this.onFrame) this.onFrame(dataUrl);
+
+      console.log(
+        '[FrameCapture] Frame captured:',
+        w + 'x' + h,
+        'Approx size:',
+        Math.round(dataUrl.length / 1024) + ' KB'
+      );
+
+      // Send frame to callback
+      if (this.onFrame) {
+        console.log('[FrameCapture] Sending frame to callback...');
+        this.onFrame(dataUrl);
+      } else {
+        console.warn('[FrameCapture] onFrame callback is not set');
+      }
+
     }, this.intervalMs);
   }
 
   stop() {
-    if (this.timer) clearInterval(this.timer);
+    this.isCapturing = false;
+
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+
+    console.log('[FrameCapture] Frame capture stopped');
   }
 }
