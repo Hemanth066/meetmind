@@ -31,7 +31,24 @@ const meetingTitle = document.getElementById('meetingTitle');
 const meetingTimer = document.getElementById('meetingTimer');
 const meetingIdDisplay = document.getElementById('meetingIdDisplay');
 
-document.getElementById('meetingIdDisplay').textContent = `ID: ${joinInfo.meetingId}`;
+function startFrameCapture() {
+  if (cameraExempt) return;
+  const videoEl = document.querySelector('#tile-local video');
+  if (!videoEl) return;
+
+  if (frameCapture) frameCapture.stop();
+
+  frameCapture = new FrameCapture(videoEl, 2000);
+  frameCapture.onFrame = (frame) => {
+    if (socket && camOn) {
+      socket.emit('analyze-frame', { frame });
+    }
+  };
+
+  if (camOn) {
+    frameCapture.start();
+  }
+}
 
 function applyHostPermissions(hostState) {
   isHost = !!hostState;
@@ -125,7 +142,7 @@ function startTimer() {
     const h = Math.floor(elapsed / 3600);
     const m = Math.floor((elapsed % 3600) / 60);
     const s = elapsed % 60;
-    meetingTimer.textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    meetingTimer.textContent = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }, 1000);
 }
 
@@ -165,7 +182,7 @@ function startCameraGracePeriod() {
       clearInterval(graceInterval);
       socket.emit('camera-grace-expired');
       cleanup();
-      alert(cameraOffViolationCount === 1 
+      alert(cameraOffViolationCount === 1
         ? 'You were removed from the meeting because your camera remained off after the 2-minute grace period.'
         : 'You were removed from the meeting due to a second camera-off violation.');
       window.location.href = '/dashboard.html';
@@ -218,25 +235,6 @@ async function init() {
     vad = new VoiceActivityDetector((seconds) => {
       socket?.emit('speaking-time', { seconds });
     });
-    function startFrameCapture() {
-      if (cameraExempt) return;
-      const videoEl = document.querySelector('#tile-local video');
-      if (!videoEl) return;
-
-      if (frameCapture) frameCapture.stop();
-
-      frameCapture = new FrameCapture(videoEl, 2000);
-      frameCapture.onFrame = (frame) => {
-        if (socket && camOn) {
-          socket.emit('analyze-frame', { frame });
-        }
-      };
-
-      if (camOn) {
-        frameCapture.start();
-      }
-    }
-
     startFrameCapture();
 
     socket = io({ auth: { token: api.getToken() } });
@@ -469,7 +467,7 @@ async function loadCameraRequests() {
         </div>
       </div>
     `).join('');
-  } catch {}
+  } catch { }
 }
 
 window.approveRequest = async (id) => {
@@ -516,7 +514,7 @@ document.getElementById('toggleScreen').addEventListener('click', async () => {
   try {
     const screen = await webrtc.startScreenShare();
     addVideoTile('screen', screen, 'Screen Share', true);
-  } catch {}
+  } catch { }
 });
 
 document.getElementById('raiseHand').addEventListener('click', () => {
