@@ -1,4 +1,3 @@
-import starlette
 import math
 from collections import defaultdict
 
@@ -6,11 +5,18 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
+try:
+    from mediapipe.python.solutions import face_detection as mp_face
+    from mediapipe.python.solutions import face_mesh as mp_face_mesh
+except Exception:
+    mp_face = mp.solutions.face_detection
+    mp_face_mesh = mp.solutions.face_mesh
+
 
 class FrameAnalyzer:
     def __init__(self):
-        self.mp_face = mp.solutions.face_detection
-        self.mp_face_mesh = mp.solutions.face_mesh
+        self.mp_face = mp_face
+        self.mp_face_mesh = mp_face_mesh
         self.face_detection = self.mp_face.FaceDetection(min_detection_confidence=0.4)
         self.face_mesh = self.mp_face_mesh.FaceMesh(
             static_image_mode=True,
