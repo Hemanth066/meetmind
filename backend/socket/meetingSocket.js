@@ -299,7 +299,7 @@ function setupSocketHandlers(io) {
       if (!socket.meetingDbId || !socket.participantId || !frame) return;
 
       const meeting = await Meeting.findById(socket.meetingDbId);
-      if (!meeting || meeting.status !== 'live') return;
+      if (!meeting || meeting.status === 'ended') return;
 
       const participant = await Participant.findById(socket.participantId);
       if (!participant || participant.cameraExempt) return;

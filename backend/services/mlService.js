@@ -11,7 +11,7 @@ async function analyzeFrame(frameBase64, participantId) {
         frame: frameBase64,
         participant_id: participantId
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
 
     console.log('[AI Pipeline] Python ML response received:', data);

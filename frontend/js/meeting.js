@@ -33,7 +33,7 @@ const meetingIdDisplay = document.getElementById('meetingIdDisplay');
 
 function startFrameCapture() {
   if (cameraExempt) return;
-  const videoEl = document.querySelector('#tile-local video');
+  const videoEl = document.querySelector('#tile-local video') || document.querySelector('.video-tile video') || document.querySelector('video');
   if (!videoEl) return;
 
   if (frameCapture) frameCapture.stop();
