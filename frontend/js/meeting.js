@@ -313,8 +313,8 @@ async function init() {
     });
 
     socket.on('analytics-update', (data) => {
-      if (isHost && data.metrics) {
-        updateLiveAnalyticsUI(data.participantId, data.metrics);
+      if (data && (data.metrics || data.face_visibility !== undefined)) {
+        updateLiveAnalyticsUI(data.participantId || 'local', data);
       }
     });
 
@@ -404,16 +404,17 @@ function refreshParticipants() {
 
 const liveAnalyticsMap = new Map();
 function updateLiveAnalyticsUI(participantId, data) {
-  const metrics = data.metrics || data;
-  const participantName = data.participantName || 'Participant';
+  if (!data) return;
+  const metrics = data.metrics ? data.metrics : data;
+  const participantName = data.participantName || (data.metrics && data.metrics.participantName) || 'Participant';
   liveAnalyticsMap.set(participantId, { name: participantName, metrics });
   const container = document.getElementById('liveAnalyticsList');
   if (!container) return;
 
   let html = '';
   liveAnalyticsMap.forEach((item) => {
-    const m = item.metrics;
-    const name = item.name;
+    const m = item.metrics || {};
+    const name = item.name || 'Participant';
     const engagement = Math.round(m.engagement_estimate || 0);
     const attention = m.attention_status || 'Analyzing...';
     let badgeClass = 'badge-live';
