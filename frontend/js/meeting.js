@@ -57,16 +57,16 @@ function applyHostPermissions(hostState) {
   const reqTab = document.getElementById('requestsTab');
   const aiTab = document.getElementById('analyticsTab');
 
+  if (aiTab) aiTab.classList.remove('hidden');
+
   if (isHost) {
     if (endBtn) endBtn.classList.remove('hidden');
     if (recBtn) recBtn.classList.remove('hidden');
     if (reqTab) reqTab.classList.remove('hidden');
-    if (aiTab) aiTab.classList.remove('hidden');
   } else {
     if (endBtn) endBtn.classList.add('hidden');
     if (recBtn) recBtn.classList.add('hidden');
     if (reqTab) reqTab.classList.add('hidden');
-    if (aiTab) aiTab.classList.add('hidden');
   }
 }
 
