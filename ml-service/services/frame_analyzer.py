@@ -5,41 +5,20 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-mp_face = None
-mp_face_mesh = None
-
-try:
-    import mediapipe.python.solutions.face_detection as mp_face
-    import mediapipe.python.solutions.face_mesh as mp_face_mesh
-except Exception:
-    try:
-        import mediapipe as mp
-        if hasattr(mp, "solutions"):
-            mp_face = mp.solutions.face_detection
-            mp_face_mesh = mp.solutions.face_mesh
-    except Exception as e:
-        print(f"[FrameAnalyzer] MediaPipe import warning: {e}")
+mp_face = mp.solutions.face_detection
+mp_face_mesh = mp.solutions.face_mesh
 
 
 class FrameAnalyzer:
     def __init__(self):
-        self.face_detection = None
-        self.face_mesh = None
-        self._init_error = None
-
-        if mp_face and mp_face_mesh:
-            try:
-                self.face_detection = mp_face.FaceDetection(min_detection_confidence=0.4)
-                self.face_mesh = mp_face_mesh.FaceMesh(
-                    static_image_mode=True,
-                    max_num_faces=1,
-                    refine_landmarks=True,
-                    min_detection_confidence=0.4,
-                    min_tracking_confidence=0.4,
-                )
-            except Exception as e:
-                self._init_error = str(e)
-                print(f"[FrameAnalyzer] MediaPipe model initialization warning: {e}")
+        self.face_detection = mp_face.FaceDetection(min_detection_confidence=0.3)
+        self.face_mesh = mp_face_mesh.FaceMesh(
+            static_image_mode=False,
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=0.3,
+            min_tracking_confidence=0.3,
+        )
 
         self._blink_state = defaultdict(lambda: {"ear_history": [], "blink_count": 0})
         self._yawn_state = defaultdict(lambda: {
@@ -50,20 +29,6 @@ class FrameAnalyzer:
         self._smile_state = defaultdict(lambda: {"smile_frames": 0})
 
     def analyze(self, image: np.ndarray, participant_id: str) -> dict:
-        if not self.face_detection or not self.face_mesh:
-            return {
-                "face_detected": False,
-                "face_visibility": 0,
-                "head_pose_forward": 0,
-                "eye_forward": 0,
-                "blink_count": 0,
-                "yawn_count": 0,
-                "smile_count": 0,
-                "engagement_estimate": 50,
-                "attention_status": "Analyzing...",
-                "emotions": {"happy": 0, "neutral": 100, "sad": 0, "angry": 0, "surprised": 0},
-                "warning": self._init_error or "MediaPipe unavailable on host"
-            }
 
         rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         h, w = image.shape[:2]
