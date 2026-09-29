@@ -35,6 +35,14 @@ class ApiClient {
     const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
     const data = await res.json().catch(() => ({}));
 
+    if (res.status === 401) {
+      this.clearToken();
+      if (!window.location.pathname.includes('/login.html') && !window.location.pathname.includes('/register.html')) {
+        window.location.href = '/login.html?expired=true';
+      }
+      throw new Error(data.message || 'Session expired. Please log in again.');
+    }
+
     if (!res.ok) {
       throw new Error(data.message || data.errors?.[0]?.msg || 'Request failed');
     }

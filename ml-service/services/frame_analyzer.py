@@ -33,9 +33,9 @@ class FrameAnalyzer:
         })
         self._smile_state = defaultdict(lambda: {"smile_frames": 0})
         self._history_state = defaultdict(lambda: {
-            "face_vis": 95.0,
-            "head_pose": 90.0,
-            "eye_focus": 90.0
+            "face_vis": 0.0,
+            "head_pose": 0.0,
+            "eye_focus": 0.0
         })
 
     def analyze(self, image: np.ndarray, participant_id: str) -> dict:
@@ -65,19 +65,6 @@ class FrameAnalyzer:
         blink_count = self._blink_state[participant_id]["blink_count"]
         yawn_count = self._yawn_state[participant_id]["yawn_count"]
         smile_count = self._smile_state[participant_id]["smile_frames"]
-
-        if not face_detected:
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            try:
-                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-                if len(faces) > 0:
-                    face_detected = True
-                    raw_face_visibility = 85.0
-                    raw_head_pose_forward = 80.0
-                    raw_eye_forward = 80.0
-            except Exception:
-                pass
 
         if face_detected:
             if has_mesh:
