@@ -82,13 +82,33 @@ class WebRTCManager {
     }
   }
 
+  replaceVideoTrack(newTrack) {
+    this.peers.forEach((peerObj) => {
+      if (peerObj.pc) {
+        const senders = peerObj.pc.getSenders();
+        const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+        if (videoSender && newTrack) {
+          videoSender.replaceTrack(newTrack).catch(err => {
+            console.warn('[WebRTC] replaceTrack error:', err);
+          });
+        }
+      }
+    });
+  }
+
   createPeer(socketId, initiator) {
     if (this.peers.has(socketId)) {
       this.removePeer(socketId);
     }
     const pc = new RTCPeerConnection(this.config);
 
-    if (this.localStream) {
+    if (this.screenStream && this.screenStream.getVideoTracks()[0]) {
+      const screenTrack = this.screenStream.getVideoTracks()[0];
+      pc.addTrack(screenTrack, this.screenStream);
+      if (this.localStream) {
+        this.localStream.getAudioTracks().forEach(t => pc.addTrack(t, this.localStream));
+      }
+    } else if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
         pc.addTrack(track, this.localStream);
       });

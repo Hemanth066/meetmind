@@ -19,11 +19,17 @@
   </header>
 
   <div class="meeting-body">
-    <div class="video-grid" id="videoGrid"></div>
+    <div style="position:relative;flex:1;display:flex;flex-direction:column;">
+      <div class="video-grid" id="videoGrid"></div>
+      <div class="live-caption-overlay hidden" id="liveCaptionOverlay">
+        <span class="speaker-name" id="captionSpeaker" style="font-weight:700;color:var(--accent)"></span>: <span class="caption-text" id="captionText"></span>
+      </div>
+    </div>
 
     <aside class="meeting-sidebar">
       <div class="sidebar-tabs">
         <button class="active" data-tab="chat">Chat</button>
+        <button data-tab="transcript">Speech</button>
         <button data-tab="participants">People</button>
         <button data-tab="analytics" id="analyticsTab">Live AI</button>
         <button data-tab="requests" id="requestsTab" class="hidden">Requests</button>
@@ -33,6 +39,11 @@
         <div class="chat-input-row">
           <input type="text" class="form-control" id="chatInput" placeholder="Type a message...">
           <button class="btn btn-primary btn-sm" id="sendChat">Send</button>
+        </div>
+      </div>
+      <div class="sidebar-panel" id="panel-transcript">
+        <div class="chat-messages" id="transcriptMessages">
+          <p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem">Live speech transcript will appear here when participants speak...</p>
         </div>
       </div>
       <div class="sidebar-panel" id="panel-participants">

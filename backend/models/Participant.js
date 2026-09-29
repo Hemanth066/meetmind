@@ -11,6 +11,8 @@ const participantSchema = new mongoose.Schema(
     cameraEnabled: { type: Boolean, default: false },
     cameraExempt: { type: Boolean, default: false },
     cameraExemptReason: { type: String, default: null },
+    cameraOffViolations: { type: Number, default: 0 },
+    cameraOffTimerStart: { type: Date, default: null },
     muteEnabled: { type: Boolean, default: false },
     handRaised: { type: Boolean, default: false },
     chatMessageCount: { type: Number, default: 0 },

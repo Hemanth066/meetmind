@@ -152,10 +152,9 @@ function startTimer() {
 
 let cameraOffViolationCount = 0;
 
-function startCameraGracePeriod() {
+function startCameraGracePeriod(data) {
   if (isHost || camOn || cameraExempt) return;
 
-  cameraOffViolationCount++;
   const warningModal = document.getElementById('cameraWarning');
   const warningText = document.getElementById('cameraWarningText');
   const graceEl = document.getElementById('graceTimer');
@@ -163,18 +162,13 @@ function startCameraGracePeriod() {
 
   warningModal.classList.add('show');
 
-  let remaining = 120;
-  if (cameraOffViolationCount === 1) {
-    remaining = 120;
-    warningText.textContent = 'Within 2 minutes the meeting will be cancelled for you, please turn on camera.';
-    graceEl.textContent = '2:00';
-    if (stayBtn) stayBtn.classList.remove('hidden');
-  } else {
-    remaining = 15;
-    warningText.textContent = 'Second camera-off violation! Turn on camera within 15 seconds or you will be automatically removed.';
-    graceEl.textContent = '0:15';
-    if (stayBtn) stayBtn.classList.remove('hidden');
-  }
+  const attemptsUsed = data?.attemptsUsed || 1;
+  const attemptsRemaining = data?.attemptsRemaining !== undefined ? data.attemptsRemaining : Math.max(0, 3 - attemptsUsed);
+  let remaining = data?.gracePeriodSeconds || 30;
+
+  warningText.textContent = `Your camera is OFF. Please turn your camera ON within ${remaining} seconds to continue participating in the meeting. (Attempt ${attemptsUsed} of 3 — ${attemptsRemaining} remaining)`;
+  graceEl.textContent = `0:${remaining.toString().padStart(2, '0')}`;
+  if (stayBtn) stayBtn.classList.remove('hidden');
 
   if (graceInterval) clearInterval(graceInterval);
   graceInterval = setInterval(() => {
@@ -182,13 +176,12 @@ function startCameraGracePeriod() {
     const m = Math.floor(remaining / 60);
     const s = remaining % 60;
     graceEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    warningText.textContent = `Camera must be enabled — ${remaining} seconds remaining. (Attempt ${attemptsUsed} of 3)`;
     if (remaining <= 0) {
       clearInterval(graceInterval);
-      socket.emit('camera-grace-expired');
+      socket?.emit('camera-grace-expired');
       cleanup();
-      alert(cameraOffViolationCount === 1
-        ? 'You were removed from the meeting because your camera remained off after the 2-minute grace period.'
-        : 'You were removed from the meeting due to a second camera-off violation.');
+      alert('You were removed from the meeting because your camera remained off after the 30-second grace period.');
       window.location.href = '/dashboard.html';
     }
   }, 1000);
@@ -323,7 +316,11 @@ async function init() {
     });
 
     socket.on('camera-warning', (data) => {
-      if (cameraRequired && !cameraExempt && !camOn) startCameraGracePeriod();
+      if (cameraRequired && !cameraExempt && !camOn) startCameraGracePeriod(data);
+    });
+
+    socket.on('camera-grace-cancelled', () => {
+      cancelCameraGrace();
     });
 
     socket.on('hand-raised', (data) => {
@@ -335,6 +332,15 @@ async function init() {
 
     socket.on('chat-message', (data) => {
       addChatMessage(data.senderName, data.message, data.timestamp);
+    });
+
+    socket.on('user-screen-share', (data) => {
+      addChatMessage('System', `${data.name} ${data.sharing ? 'started' : 'stopped'} screen sharing`, new Date());
+    });
+
+    socket.on('speech-transcript', (data) => {
+      addTranscriptMessage(data.senderName, data.text);
+      showLiveCaption(data.senderName, data.text);
     });
 
     socket.on('recording-state', (data) => {
@@ -372,6 +378,11 @@ async function init() {
     });
 
     if (isHost) loadCameraRequests();
+
+    initSpeechRecognition();
+    if (micOn) {
+      startTranscribing();
+    }
 
   } catch (err) {
     console.error('[meeting.js:L264] Initialization error caught in init():', err);
@@ -487,12 +498,104 @@ window.rejectRequest = async (id) => {
   loadCameraRequests();
 };
 
+// Speech Recognition & Live Captioning
+let speechRecognition = null;
+let isTranscribing = false;
+
+function initSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    console.warn('[Speech] Web Speech API is not supported in this browser context.');
+    return;
+  }
+
+  speechRecognition = new SpeechRecognition();
+  speechRecognition.continuous = true;
+  speechRecognition.interimResults = false;
+  speechRecognition.lang = 'en-US';
+
+  speechRecognition.onresult = (event) => {
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        const text = event.results[i][0].transcript.trim();
+        if (text && socket) {
+          console.log('[Speech Recognized]:', text);
+          socket.emit('speech-transcript', { text });
+        }
+      }
+    }
+  };
+
+  speechRecognition.onerror = (event) => {
+    console.warn('[Speech Recognition Error]:', event.error);
+  };
+
+  speechRecognition.onend = () => {
+    if (isTranscribing && micOn) {
+      try {
+        speechRecognition.start();
+      } catch (e) {}
+    }
+  };
+}
+
+function startTranscribing() {
+  if (!speechRecognition) return;
+  isTranscribing = true;
+  try {
+    speechRecognition.start();
+  } catch (e) {}
+}
+
+function stopTranscribing() {
+  isTranscribing = false;
+  if (speechRecognition) {
+    try {
+      speechRecognition.stop();
+    } catch (e) {}
+  }
+}
+
+function addTranscriptMessage(sender, text) {
+  const container = document.getElementById('transcriptMessages');
+  if (!container) return;
+  const placeholder = container.querySelector('p');
+  if (placeholder) placeholder.remove();
+
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.innerHTML = `<div class="sender">🎙️ ${sender}</div>${text}`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function showLiveCaption(sender, text) {
+  const overlay = document.getElementById('liveCaptionOverlay');
+  const speakerEl = document.getElementById('captionSpeaker');
+  const textEl = document.getElementById('captionText');
+  if (!overlay || !speakerEl || !textEl) return;
+
+  speakerEl.textContent = sender;
+  textEl.textContent = text;
+  overlay.classList.remove('hidden');
+
+  if (window.captionTimeout) clearTimeout(window.captionTimeout);
+  window.captionTimeout = setTimeout(() => {
+    overlay.classList.add('hidden');
+  }, 5000);
+}
+
 // Controls
 document.getElementById('toggleMic').addEventListener('click', () => {
   micOn = !micOn;
   webrtc.toggleAudio(micOn);
   document.getElementById('toggleMic').classList.toggle('off', !micOn);
   socket?.emit('media-state', { cameraOn: camOn, micOn });
+  if (micOn) {
+    startTranscribing();
+  } else {
+    stopTranscribing();
+  }
 });
 
 document.getElementById('toggleCam').addEventListener('click', () => {
@@ -514,12 +617,54 @@ document.getElementById('toggleCam').addEventListener('click', () => {
   }
 });
 
+let isSharingScreen = false;
+
 document.getElementById('toggleScreen').addEventListener('click', async () => {
-  if (!joinInfo.settings?.screenSharing) return alert('Screen sharing disabled');
+  if (!joinInfo.settings?.screenSharing) return alert('Screen sharing disabled for this meeting');
+
+  if (isSharingScreen) {
+    webrtc.stopScreenShare();
+    isSharingScreen = false;
+    document.getElementById('toggleScreen').classList.remove('active');
+    removeVideoTile('screen');
+    if (webrtc.localStream) {
+      const videoTrack = webrtc.localStream.getVideoTracks()[0];
+      if (videoTrack) webrtc.replaceVideoTrack(videoTrack);
+    }
+    socket?.emit('screen-share-state', { sharing: false });
+    return;
+  }
+
   try {
-    const screen = await webrtc.startScreenShare();
-    addVideoTile('screen', screen, 'Screen Share', true);
-  } catch { }
+    const screenStream = await webrtc.startScreenShare();
+    const screenTrack = screenStream.getVideoTracks()[0];
+    if (!screenTrack) return;
+
+    isSharingScreen = true;
+    document.getElementById('toggleScreen').classList.add('active');
+
+    // Transmit screen share video track live over WebRTC to all participants!
+    webrtc.replaceVideoTrack(screenTrack);
+
+    // Show local preview tile
+    addVideoTile('screen', screenStream, 'Screen Share', true);
+
+    socket?.emit('screen-share-state', { sharing: true });
+
+    // Handle when user stops sharing via browser native bar ("Stop sharing")
+    screenTrack.onended = () => {
+      isSharingScreen = false;
+      document.getElementById('toggleScreen').classList.remove('active');
+      removeVideoTile('screen');
+      if (webrtc.localStream) {
+        const camTrack = webrtc.localStream.getVideoTracks()[0];
+        if (camTrack) webrtc.replaceVideoTrack(camTrack);
+      }
+      socket?.emit('screen-share-state', { sharing: false });
+    };
+  } catch (err) {
+    console.error('[ScreenShare] Error starting screen share:', err);
+  }
 });
 
 document.getElementById('raiseHand').addEventListener('click', () => {
@@ -550,6 +695,7 @@ function sendChat() {
 function cleanup() {
   if (timerInterval) clearInterval(timerInterval);
   if (graceInterval) clearInterval(graceInterval);
+  stopTranscribing();
   frameCapture?.stop();
   vad?.stop();
   webrtc.cleanup();

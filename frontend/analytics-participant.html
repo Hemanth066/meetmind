@@ -51,9 +51,25 @@
       </div>
     </section>
 
-    <section class="glass" style="padding:2rem">
+    <section class="glass" style="padding:2rem;margin-bottom:2rem">
       <h2>AI Observations</h2>
       <div id="aiObservations" style="margin-top:1rem;color:var(--text-muted)"></div>
+    </section>
+
+    <section class="glass" style="padding:2rem;margin-bottom:2rem">
+      <h2 class="section-title">AI Meeting Summary</h2>
+      <p id="aiSummary" style="color:var(--text-muted);margin-top:0.5rem">Loading summary...</p>
+      
+      <h3 style="margin-top:1.5rem">Key Discussion Points</h3>
+      <ul id="keyPoints" style="padding-left:1.2rem;color:var(--text-muted)"></ul>
+
+      <h3 style="margin-top:1.5rem">Action Items</h3>
+      <ul id="actionItems" style="padding-left:1.2rem;color:var(--text-muted)"></ul>
+    </section>
+
+    <section class="glass" style="padding:2rem">
+      <h2 class="section-title">Meeting Transcript</h2>
+      <pre id="transcript" style="white-space:pre-wrap;color:var(--text-muted);font-size:0.9rem;margin-top:0.5rem"></pre>
     </section>
   </main>
 
@@ -65,21 +81,43 @@
 
     async function load() {
       const data = await api.getParticipantAnalytics(meetingId);
-      const { meeting, participant: p } = data;
+      const { meeting, participant: p, summary, keyPoints, actionItems, transcript } = data;
 
       document.getElementById('reportTitle').textContent = meeting.title;
       document.getElementById('reportMeta').textContent = formatDate(meeting.endedAt);
-      document.getElementById('engagementScore').textContent = (p.engagementScore || 0) + '%';
-      document.getElementById('speakingTime').textContent = formatSeconds(p.speakingTimeSeconds || 0);
-      document.getElementById('chatCount').textContent = p.chatMessageCount || 0;
-      document.getElementById('raiseHandCount').textContent = p.raiseHandCount || 0;
-      document.getElementById('joinTime').textContent = formatDate(p.joinTime);
-      document.getElementById('leaveTime').textContent = formatDate(p.leaveTime);
-      document.getElementById('cameraStatus').textContent = p.cameraExempt ? 'Exempt' : (p.cameraEnabled ? 'On' : 'Off');
+      if (p) {
+        document.getElementById('engagementScore').textContent = (p.engagementScore || 0) + '%';
+        document.getElementById('speakingTime').textContent = formatSeconds(p.speakingTimeSeconds || 0);
+        document.getElementById('chatCount').textContent = p.chatMessageCount || 0;
+        document.getElementById('raiseHandCount').textContent = p.raiseHandCount || 0;
+        document.getElementById('joinTime').textContent = formatDate(p.joinTime);
+        document.getElementById('leaveTime').textContent = formatDate(p.leaveTime);
+        document.getElementById('cameraStatus').textContent = p.cameraExempt ? 'Exempt' : (p.cameraEnabled ? 'On' : 'Off');
+      }
       document.getElementById('meetingDuration').textContent = formatDuration(meeting.duration);
 
+      // AI Summary
+      document.getElementById('aiSummary').textContent = summary || 'Summary not available.';
+
+      const kpEl = document.getElementById('keyPoints');
+      if (keyPoints && keyPoints.length > 0) {
+        kpEl.innerHTML = keyPoints.map(kp => `<li>${kp}</li>`).join('');
+      } else {
+        kpEl.innerHTML = '<li>No key points recorded</li>';
+      }
+
+      const aiEl = document.getElementById('actionItems');
+      if (actionItems && actionItems.length > 0) {
+        aiEl.innerHTML = actionItems.map(ai => typeof ai === 'string' ? `<li>${ai}</li>` : `<li><strong>${ai.task}</strong> ${ai.assignee ? `(Assigned: ${ai.assignee})` : ''}</li>`).join('');
+      } else {
+        aiEl.innerHTML = '<li>No action items recorded</li>';
+      }
+
+      // Transcript
+      document.getElementById('transcript').textContent = transcript || 'No transcript recorded.';
+
       const obsEl = document.getElementById('aiObservations');
-      if (!p.visualMetricsAvailable) {
+      if (!p || !p.visualMetricsAvailable) {
         obsEl.innerHTML = '<p>Visual metrics: <strong>Not Available</strong> (camera was off or exempt)</p>';
       } else if (p.aiObservations?.note) {
         obsEl.textContent = p.aiObservations.note;

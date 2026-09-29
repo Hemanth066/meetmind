@@ -172,15 +172,26 @@ ACTION ITEMS:
         return {"summary": summary, "key_points": key_points[:10], "action_items": action_items[:10]}
 
     def _rule_based_summarize(self, transcript: str) -> dict:
-        sentences = re.split(r"(?<=[.!?])\s+", transcript.strip())
-        summary = " ".join(sentences[:5]) if sentences else "Meeting transcript processed."
-        key_points = sentences[:5] if sentences else []
+        lines = [line.strip() for line in transcript.split("\n") if line.strip()]
+        dialogue = [l for l in lines if not l.startswith(("Meeting Title:", "Duration:", "Total Participants:", "---"))]
+        
+        if dialogue:
+            summary = " ".join(dialogue[:5])
+            key_points = dialogue[:5]
+        elif lines:
+            summary = " ".join(lines[:5])
+            key_points = lines[:5]
+        else:
+            summary = "Meeting completed with participants."
+            key_points = ["Meeting completed successfully."]
+
         action_items = []
-        for s in sentences:
+        target_lines = dialogue if dialogue else lines
+        for s in target_lines:
             if re.search(r"\b(will|should|need to|action|todo|follow up|assign)\b", s, re.I):
                 action_items.append({"task": s.strip(), "assignee": "", "deadline": ""})
         return {
             "summary": summary,
-            "key_points": key_points,
+            "key_points": key_points[:10],
             "action_items": action_items[:5],
         }

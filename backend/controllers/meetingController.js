@@ -295,14 +295,23 @@ exports.endMeeting = async (req, res) => {
     transcriptParts.push(`Duration: ${meeting.duration || 0} minutes`);
     transcriptParts.push(`Total Participants: ${participants.length}`);
 
+    if (analytics.transcriptSegments && analytics.transcriptSegments.length > 0) {
+      transcriptParts.push('\n--- Spoken Dialogue Transcript ---');
+      analytics.transcriptSegments.forEach(seg => {
+        transcriptParts.push(`[${seg.speaker}]: ${seg.text}`);
+      });
+    }
+
     if (chatMessages.length > 0) {
       transcriptParts.push('\n--- Meeting Chat & Notes ---');
       chatMessages.forEach(c => {
         const sender = c.senderName || c.userId?.name || 'Participant';
-        transcriptParts.push(`[${sender}]: ${c.message}`);
+        transcriptParts.push(`[Chat - ${sender}]: ${c.message}`);
       });
-    } else {
-      transcriptParts.push('\nNo text chat messages were sent during this session.');
+    }
+
+    if ((!analytics.transcriptSegments || analytics.transcriptSegments.length === 0) && chatMessages.length === 0) {
+      transcriptParts.push('\nNo spoken dialogue or text chat messages were recorded during this session.');
     }
 
     const compiledTranscript = transcriptParts.join('\n');
@@ -312,8 +321,8 @@ exports.endMeeting = async (req, res) => {
 
     try {
       const result = await processMeetingRecording(meeting._id.toString(), null, compiledTranscript);
-      if (result) {
-        analytics.summary = result.summary || 'Meeting completed with ' + participants.length + ' participants.';
+      if (result && (result.summary || result.key_points?.length)) {
+        analytics.summary = result.summary || 'Meeting completed with ' + participants.length + ' participant(s).';
         analytics.keyPoints = result.key_points && result.key_points.length ? result.key_points : ['Meeting ended successfully', `Total participants: ${participants.length}`];
         analytics.actionItems = result.action_items || [];
         analytics.keywords = result.keywords || [];
@@ -321,14 +330,25 @@ exports.endMeeting = async (req, res) => {
         analytics.overallEngagement =
           participants.reduce((s, p) => s + (p.engagementScore || 0), 0) /
           Math.max(participants.length, 1);
+      } else {
+        const lines = compiledTranscript.split('\n').filter(l => l.trim() && !l.startsWith('Meeting Title:') && !l.startsWith('Duration:') && !l.startsWith('Total Participants:') && !l.startsWith('---'));
+        analytics.summary = lines.length > 0
+          ? `Meeting discussion summary: ${lines.slice(0, 4).join('. ')}`
+          : `Meeting completed with ${participants.length} participant(s).`;
+        analytics.keyPoints = lines.length > 0 ? lines.slice(0, 5) : [`Total duration: ${meeting.duration || 0}m`, `Participants: ${participants.length}`];
+        analytics.transcript = compiledTranscript;
       }
       analytics.processingStatus = 'completed';
       await analytics.save();
     } catch (procErr) {
       console.error('Error processing meeting summary:', procErr);
       analytics.processingStatus = 'completed';
-      analytics.summary = 'Meeting completed with ' + participants.length + ' participants.';
-      analytics.keyPoints = [`Total duration: ${meeting.duration || 0}m`, `Participants: ${participants.length}`];
+      const lines = compiledTranscript.split('\n').filter(l => l.trim() && !l.startsWith('Meeting Title:') && !l.startsWith('Duration:') && !l.startsWith('Total Participants:') && !l.startsWith('---'));
+      analytics.summary = lines.length > 0
+        ? `Meeting discussion summary: ${lines.slice(0, 4).join('. ')}`
+        : `Meeting completed with ${participants.length} participant(s).`;
+      analytics.keyPoints = lines.length > 0 ? lines.slice(0, 5) : [`Total duration: ${meeting.duration || 0}m`, `Participants: ${participants.length}`];
+      analytics.transcript = compiledTranscript;
       await analytics.save();
     }
 
@@ -384,19 +404,17 @@ exports.getParticipantAnalytics = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Meeting not found' });
     }
 
-    const isHost = meeting.hostId.toString() === req.user._id.toString();
-    if (!isHost) {
-      return res.status(403).json({ success: false, message: 'Access denied. Analytics are only visible to the meeting host.' });
-    }
-
     const participant = await Participant.findOne({
       meetingId: meeting._id,
       userId: req.user._id
     });
 
-    if (!participant) {
-      return res.status(403).json({ success: false, message: 'Access denied' });
+    const isHost = meeting.hostId.toString() === req.user._id.toString();
+    if (!participant && !isHost) {
+      return res.status(403).json({ success: false, message: 'Access denied. You were not a participant in this meeting.' });
     }
+
+    const analytics = await AIAnalytics.findOne({ meetingId: meeting._id });
 
     res.json({
       success: true,
@@ -406,21 +424,27 @@ exports.getParticipantAnalytics = async (req, res) => {
         duration: meeting.duration,
         endedAt: meeting.endedAt
       },
-      participant: {
-        joinTime: participant.joinTime,
-        leaveTime: participant.leaveTime,
-        speakingTimeSeconds: participant.speakingTimeSeconds,
-        cameraEnabled: participant.cameraEnabled,
-        cameraExempt: participant.cameraExempt,
-        engagementScore: participant.engagementScore,
-        visualMetricsAvailable: participant.visualMetricsAvailable,
-        aiObservations: participant.visualMetricsAvailable
-          ? participant.aiObservations
-          : { note: 'Not Available - camera was off or exempt' },
-        audioMetrics: participant.audioMetrics,
-        chatMessageCount: participant.chatMessageCount,
-        raiseHandCount: participant.raiseHandCount
-      }
+      summary: analytics?.summary || '',
+      keyPoints: analytics?.keyPoints || [],
+      actionItems: analytics?.actionItems || [],
+      transcript: analytics?.transcript || '',
+      participant: participant
+        ? {
+            joinTime: participant.joinTime,
+            leaveTime: participant.leaveTime,
+            speakingTimeSeconds: participant.speakingTimeSeconds,
+            cameraEnabled: participant.cameraEnabled,
+            cameraExempt: participant.cameraExempt,
+            engagementScore: participant.engagementScore,
+            visualMetricsAvailable: participant.visualMetricsAvailable,
+            aiObservations: participant.visualMetricsAvailable
+              ? participant.aiObservations
+              : { note: 'Not Available - camera was off or exempt' },
+            audioMetrics: participant.audioMetrics,
+            chatMessageCount: participant.chatMessageCount,
+            raiseHandCount: participant.raiseHandCount
+          }
+        : null
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

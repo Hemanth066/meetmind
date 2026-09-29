@@ -75,6 +75,13 @@ function setupSocketHandlers(io) {
           return;
         }
 
+        if (participant.status === 'removed') {
+          socket.emit('removed-from-meeting', {
+            reason: 'You were removed from this meeting due to camera violations (exceeded 3 attempts or grace period expired).'
+          });
+          return;
+        }
+
         if (participant.status === 'pending_approval') {
           socket.emit('waiting-approval', { message: 'Waiting for host approval' });
           return;
@@ -192,11 +199,20 @@ function setupSocketHandlers(io) {
         p.micOn = micOn;
       }
 
-      await Participant.findByIdAndUpdate(socket.participantId, {
-        cameraEnabled: cameraOn,
-        visualMetricsAvailable: cameraOn && !p?.cameraExempt,
-        muteEnabled: !micOn
-      });
+      const participant = await Participant.findById(socket.participantId);
+      if (participant) {
+        participant.cameraEnabled = cameraOn;
+        participant.visualMetricsAvailable = cameraOn && !p?.cameraExempt;
+        participant.muteEnabled = !micOn;
+        if (cameraOn) {
+          participant.cameraOffTimerStart = null;
+        }
+        await participant.save();
+      }
+
+      if (cameraOn) {
+        socket.emit('camera-grace-cancelled');
+      }
 
       socket.to(socket.meetingDbId).emit('media-state-changed', {
         socketId: socket.id,
@@ -208,9 +224,47 @@ function setupSocketHandlers(io) {
 
     socket.on('camera-disabled-warning', async () => {
       if (socket.isHost) return;
+      const meeting = await Meeting.findById(socket.meetingDbId);
+      if (!meeting?.settings.cameraRequired) return;
+
+      const participant = await Participant.findById(socket.participantId);
+      if (!participant || participant.cameraExempt) return;
+
+      // Track attempts in MongoDB so refresh/reconnect cannot reset it
+      participant.cameraOffViolations = (participant.cameraOffViolations || 0) + 1;
+      participant.cameraOffTimerStart = new Date();
+      await participant.save();
+
+      const attemptsUsed = participant.cameraOffViolations;
+      const attemptsRemaining = Math.max(0, 3 - attemptsUsed);
+
+      if (attemptsUsed > 3) {
+        participant.status = 'removed';
+        participant.leaveTime = new Date();
+        await participant.save();
+
+        socket.emit('removed-from-meeting', {
+          reason: 'Maximum camera-off attempts (3) exceeded. You have been removed from the meeting.'
+        });
+
+        const room = getRoom(socket.meetingDbId);
+        if (room) room.participants.delete(socket.id);
+        socket.leave(socket.meetingDbId);
+
+        await notifyHost(
+          meeting,
+          'camera_disabled',
+          'Participant Removed',
+          `${socket.user.name} was removed (exceeded 3 camera-off attempts)`
+        );
+        return;
+      }
+
       socket.emit('camera-warning', {
-        message: 'Camera is required for this meeting. Turn it ON within 2 minutes for 1st warning or 15s for 2nd warning.',
-        gracePeriodMs: 120000
+        attemptsUsed,
+        attemptsRemaining,
+        gracePeriodSeconds: 30,
+        message: `Your camera is OFF. Please turn your camera ON within 30 seconds to continue participating in the meeting. (Attempt ${attemptsUsed} of 3 — ${attemptsRemaining} remaining)`
       });
     });
 
@@ -220,14 +274,14 @@ function setupSocketHandlers(io) {
       if (!meeting?.settings.cameraRequired) return;
 
       const participant = await Participant.findById(socket.participantId);
-      if (participant?.cameraExempt) return;
+      if (!participant || participant.cameraExempt) return;
 
       participant.status = 'removed';
       participant.leaveTime = new Date();
       await participant.save();
 
       socket.emit('removed-from-meeting', {
-        reason: 'You were automatically removed from the meeting due to camera-off grace period expiration.'
+        reason: 'You were automatically removed from the meeting due to 30-second camera-off grace period expiration.'
       });
 
       const room = getRoom(socket.meetingDbId);
@@ -240,7 +294,7 @@ function setupSocketHandlers(io) {
         meeting,
         'camera_disabled',
         'Participant Removed',
-        `${socket.user.name} was removed (camera off)`
+        `${socket.user.name} was removed (camera off grace period expired)`
       );
     });
 
@@ -288,6 +342,46 @@ function setupSocketHandlers(io) {
       });
     });
 
+    socket.on('screen-share-state', ({ sharing }) => {
+      socket.to(socket.meetingDbId).emit('user-screen-share', {
+        socketId: socket.id,
+        name: socket.user.name,
+        sharing
+      });
+    });
+
+    socket.on('speech-transcript', async ({ text }) => {
+      if (!text || !text.trim()) return;
+      const meetingId = socket.meetingDbId;
+      if (!meetingId) return;
+
+      const trimmedText = text.trim();
+      const speaker = socket.user?.name || 'Participant';
+
+      try {
+        let analytics = await AIAnalytics.findOne({ meetingId });
+        if (!analytics) {
+          analytics = new AIAnalytics({ meetingId, transcriptSegments: [] });
+        }
+        analytics.transcriptSegments.push({
+          speaker,
+          text: trimmedText,
+          startTime: Date.now()
+        });
+        const formattedLine = `[${speaker}]: ${trimmedText}`;
+        analytics.transcript = analytics.transcript ? `${analytics.transcript}\n${formattedLine}` : formattedLine;
+        await analytics.save();
+
+        io.to(meetingId).emit('speech-transcript', {
+          senderName: speaker,
+          text: trimmedText,
+          timestamp: new Date()
+        });
+      } catch (err) {
+        console.error('[Socket] Error processing speech transcript:', err.message);
+      }
+    });
+
     socket.on('speaking-time', async ({ seconds }) => {
       await Participant.findByIdAndUpdate(socket.participantId, {
         $inc: { speakingTimeSeconds: seconds }
@@ -308,23 +402,16 @@ function setupSocketHandlers(io) {
       let result = await analyzeFrame(frame, targetParticipantId).catch(() => null);
 
       if (!result) {
-        // Dynamic micro-variations so values live-update every frame
-        const now = Date.now();
-        const eyeVar = Math.max(75, Math.min(99, Math.round(91 + Math.sin(now / 1500) * 5)));
-        const headVar = Math.max(75, Math.min(99, Math.round(89 + Math.cos(now / 1800) * 4)));
-        const faceVar = Math.max(80, Math.min(99, Math.round(95 + Math.sin(now / 2200) * 3)));
-        const engVar = Math.round(eyeVar * 0.35 + headVar * 0.35 + faceVar * 0.3);
-
         result = {
-          face_detected: true,
-          face_visibility: faceVar,
-          head_pose_forward: headVar,
-          eye_forward: eyeVar,
+          face_detected: false,
+          face_visibility: 0,
+          head_pose_forward: 0,
+          eye_forward: 0,
           blink_count: participant?.aiObservations?.blinkCount || 0,
           yawn_count: participant?.aiObservations?.yawnCount || 0,
           smile_count: participant?.aiObservations?.smileCount || 0,
-          engagement_estimate: engVar,
-          attention_status: 'Attentive (Focused)'
+          engagement_estimate: 0,
+          attention_status: 'Scanning / No Face'
         };
       }
 
