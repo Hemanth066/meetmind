@@ -3,7 +3,24 @@ class WebRTCManager {
     this.localStream = null;
     this.screenStream = null;
     this.peers = new Map();
-    this.config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    this.config = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:relay.metered.ca:80' },
+        {
+          urls: 'turn:relay.metered.ca:80',
+          username: 'e010a30b205364177d610360',
+          credential: '31p/P41c4/hK1NqC'
+        },
+        {
+          urls: 'turn:relay.metered.ca:443',
+          username: 'e010a30b205364177d610360',
+          credential: '31p/P41c4/hK1NqC'
+        }
+      ]
+    };
     this.onRemoteStream = null;
     this.onPeerDisconnected = null;
     this.onIceCandidate = null;
