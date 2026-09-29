@@ -60,7 +60,7 @@ app.use((err, _req, res, _next) => {
 });
 
 const PORT = config.port;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`MeetMind server running on http://localhost:${PORT}`);
 });
 
