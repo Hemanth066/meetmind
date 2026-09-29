@@ -61,16 +61,16 @@ function applyHostPermissions(hostState) {
   const reqTab = document.getElementById('requestsTab');
   const aiTab = document.getElementById('analyticsTab');
 
-  if (aiTab) aiTab.classList.remove('hidden');
-
   if (isHost) {
     if (endBtn) endBtn.classList.remove('hidden');
     if (recBtn) recBtn.classList.remove('hidden');
     if (reqTab) reqTab.classList.remove('hidden');
+    if (aiTab) aiTab.classList.remove('hidden');
   } else {
     if (endBtn) endBtn.classList.add('hidden');
     if (recBtn) recBtn.classList.add('hidden');
     if (reqTab) reqTab.classList.add('hidden');
+    if (aiTab) aiTab.classList.add('hidden');
   }
 }
 
@@ -689,6 +689,19 @@ function sendChat() {
   const msg = input.value.trim();
   if (!msg) return;
   socket?.emit('chat-message', { message: msg });
+  input.value = '';
+}
+
+document.getElementById('sendSpeech')?.addEventListener('click', sendSpeechInput);
+document.getElementById('speechInput')?.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') sendSpeechInput();
+});
+
+function sendSpeechInput() {
+  const input = document.getElementById('speechInput');
+  const text = input ? input.value.trim() : '';
+  if (!text) return;
+  socket?.emit('speech-transcript', { text });
   input.value = '';
 }
 
