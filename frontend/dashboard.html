@@ -104,7 +104,10 @@
             <span class="badge badge-${m.status === 'live' ? 'live' : 'ended'}">${m.status}</span>
             ${m.role === 'host' ? '<span class="badge badge-host">Host</span>' : ''}
             ${m.status !== 'ended' ? `<button class="btn btn-sm btn-primary" onclick="joinFromDashboard('${m.id}', '${m.meetingId}', ${m.role === 'host'})">${m.role === 'host' ? '🎥 Start / Join' : '🔗 Join'}</button>` : ''}
-            ${m.role === 'host' ? `<a href="/analytics-host.html?id=${m.id}" class="btn btn-sm btn-outline">📊 Analytics</a>` : ''}
+            ${m.role === 'host' 
+              ? `<a href="/analytics-host.html?id=${m.id}" class="btn btn-sm btn-outline">📊 Host Analytics</a>`
+              : `<a href="/analytics-participant.html?id=${m.id}" class="btn btn-sm btn-outline">📝 Summary & Transcript</a>`
+            }
           </div>
         </div>
       `).join('');

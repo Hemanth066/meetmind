@@ -150,14 +150,19 @@
         100
       );
 
-      document.getElementById('aiSummary').textContent = analytics?.summary || 'Summary processing...';
-      document.getElementById('keyPoints').innerHTML = (analytics?.keyPoints || [])
-        .map(p => `<li>${p}</li>`).join('') || '<li>No key points yet</li>';
-      document.getElementById('actionItems').innerHTML = (analytics?.actionItems || [])
-        .map(a => `<li>${a.task}${a.assignee ? ` — ${a.assignee}` : ''}</li>`).join('') || '<li>No action items</li>';
-      document.getElementById('keywords').innerHTML = (analytics?.keywords || [])
-        .map(k => `<span class="badge badge-host">${k}</span>`).join('');
-      document.getElementById('transcript').textContent = analytics?.transcript || 'No transcript available';
+      const transcriptText = analytics?.transcript || '';
+      document.getElementById('aiSummary').textContent = analytics?.summary || (transcriptText ? 'Meeting completed with transcript recorded.' : `Meeting completed with ${participants.length} participant(s).`);
+      
+      const keyPointsList = analytics?.keyPoints && analytics.keyPoints.length ? analytics.keyPoints : [`Total duration: ${meeting.duration || 0}m`, `Participants: ${participants.length}`];
+      document.getElementById('keyPoints').innerHTML = keyPointsList.map(p => `<li>${p}</li>`).join('');
+
+      const actionItemsList = analytics?.actionItems && analytics.actionItems.length ? analytics.actionItems : [{ task: 'Review meeting transcript and attendance' }];
+      document.getElementById('actionItems').innerHTML = actionItemsList.map(a => typeof a === 'string' ? `<li>${a}</li>` : `<li>${a.task}${a.assignee ? ` — ${a.assignee}` : ''}</li>`).join('');
+
+      const keywordsList = analytics?.keywords && analytics.keywords.length ? analytics.keywords : ['Meeting', 'Session', 'Analytics'];
+      document.getElementById('keywords').innerHTML = keywordsList.map(k => `<span class="badge badge-host">${k}</span>`).join('');
+
+      document.getElementById('transcript').textContent = transcriptText || 'No transcript available for this meeting.';
 
       window.participantsData = participants;
       document.getElementById('participantCards').innerHTML = participants.map((p, i) => `
