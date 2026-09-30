@@ -61,7 +61,8 @@ class FrameAnalyzer:
         raw_face_visibility = 0.0
         raw_head_pose_forward = 0.0
         raw_eye_forward = 0.0
-        emotions = {"happy": 0, "neutral": 100, "sad": 0, "angry": 0, "surprised": 0}
+        emotions = {"happy": 0, "neutral": 0, "sad": 0, "angry": 0, "surprised": 0}
+        dominant_emotion = "No Face"
         blink_count = self._blink_state[participant_id]["blink_count"]
         yawn_count = self._yawn_state[participant_id]["yawn_count"]
         smile_count = self._smile_state[participant_id]["smile_frames"]
@@ -84,7 +85,6 @@ class FrameAnalyzer:
             if nose and left_eye and right_eye:
                 eye_center_x = (left_eye[0] + right_eye[0]) / 2
                 eye_offset = abs(nose[0] - eye_center_x)
-                # Calibrated for natural webcam FOV
                 raw_eye_forward = max(35.0, min(99.0, 100.0 - eye_offset * 180))
             else:
                 raw_eye_forward = 85.0
@@ -107,13 +107,20 @@ class FrameAnalyzer:
                     self._smile_state[participant_id]["smile_frames"] = smile_count
 
                 emotions = self._estimate_emotions(lm, smile, mar)
+            else:
+                emotions = {"happy": 15, "neutral": 75, "sad": 5, "angry": 0, "surprised": 5}
 
         # Smooth metrics across frames for natural, stable values
         history = self._history_state[participant_id]
         if face_detected:
-            history["face_vis"] = round(history["face_vis"] * 0.4 + raw_face_visibility * 0.6, 1)
-            history["head_pose"] = round(history["head_pose"] * 0.5 + raw_head_pose_forward * 0.5, 1)
-            history["eye_focus"] = round(history["eye_focus"] * 0.5 + raw_eye_forward * 0.5, 1)
+            if history["face_vis"] == 0.0:
+                history["face_vis"] = raw_face_visibility
+                history["head_pose"] = raw_head_pose_forward
+                history["eye_focus"] = raw_eye_forward
+            else:
+                history["face_vis"] = round(history["face_vis"] * 0.4 + raw_face_visibility * 0.6, 1)
+                history["head_pose"] = round(history["head_pose"] * 0.5 + raw_head_pose_forward * 0.5, 1)
+                history["eye_focus"] = round(history["eye_focus"] * 0.5 + raw_eye_forward * 0.5, 1)
         else:
             history["face_vis"] = 0.0
             history["head_pose"] = 0.0
@@ -123,18 +130,23 @@ class FrameAnalyzer:
         head_pose_forward = history["head_pose"]
         eye_forward = history["eye_focus"]
 
-        engagement = self._engagement_from_visuals(
-            face_visibility, head_pose_forward, eye_forward, blink_count, smile_count
-        )
-
         if not face_detected:
+            engagement = 0.0
             attention_status = "No Face Detected / Away"
-        elif head_pose_forward < 45.0 or eye_forward < 45.0:
-            attention_status = "Distracted (Looking Away)"
-        elif 'mar' in locals() and mar > 0.55:
-            attention_status = "Drowsy / Inattentive"
+            dominant_emotion = "No Face"
         else:
-            attention_status = "Attentive (Focused)"
+            engagement = self._engagement_from_visuals(
+                face_visibility, head_pose_forward, eye_forward, blink_count, smile_count
+            )
+            top_emo = max(emotions.items(), key=lambda x: x[1])
+            dominant_emotion = f"{top_emo[0].capitalize()} ({top_emo[1]}%)"
+
+            if head_pose_forward < 45.0 or eye_forward < 45.0:
+                attention_status = "Distracted (Looking Away)"
+            elif 'mar' in locals() and mar > 0.55:
+                attention_status = "Drowsy / Inattentive"
+            else:
+                attention_status = "Attentive (Focused)"
 
         return {
             "face_detected": face_detected,
@@ -145,6 +157,7 @@ class FrameAnalyzer:
             "yawn_count": yawn_count,
             "smile_count": smile_count,
             "emotions": emotions,
+            "dominant_emotion": dominant_emotion,
             "engagement_estimate": round(engagement, 2),
             "attention_status": attention_status,
         }

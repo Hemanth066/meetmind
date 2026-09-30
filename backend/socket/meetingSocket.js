@@ -430,9 +430,10 @@ function setupSocketHandlers(io) {
         const oldHead = participant.aiObservations.headPoseForward || 0;
         const oldEye = participant.aiObservations.eyeForward || 0;
 
-        const newFace = result.face_visibility ?? (result.face_detected ? 85 : 0);
-        const newHead = result.head_pose_forward ?? (result.face_detected ? 80 : 0);
-        const newEye = result.eye_forward ?? (result.face_detected ? 80 : 0);
+        const isDetected = result.face_detected !== false;
+        const newFace = isDetected ? (result.face_visibility ?? 85) : 0;
+        const newHead = isDetected ? (result.head_pose_forward ?? 80) : 0;
+        const newEye = isDetected ? (result.eye_forward ?? 80) : 0;
 
         participant.aiObservations.frameCount = count;
         participant.aiObservations.faceVisibility = Math.round(((oldFace * (count - 1)) + newFace) / count);
@@ -442,14 +443,16 @@ function setupSocketHandlers(io) {
         participant.aiObservations.yawnCount = result.yawn_count ?? participant.aiObservations.yawnCount;
         participant.aiObservations.smileCount = result.smile_count ?? participant.aiObservations.smileCount;
 
-        if (result.engagement_estimate !== undefined) {
+        if (!isDetected) {
+          participant.engagementScore = 0;
+        } else if (result.engagement_estimate !== undefined) {
           const prevScore = participant.engagementScore || 0;
           participant.engagementScore = Math.round(prevScore === 0 ? result.engagement_estimate : (prevScore * 0.4 + result.engagement_estimate * 0.6));
         }
 
         if (result.emotions) {
           Object.keys(result.emotions).forEach((k) => {
-            if (participant.aiObservations.emotions[k] !== undefined) {
+            if (participant.aiObservations.emotions && participant.aiObservations.emotions[k] !== undefined) {
               participant.aiObservations.emotions[k] = result.emotions[k];
             }
           });
