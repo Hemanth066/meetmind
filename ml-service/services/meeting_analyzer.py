@@ -77,26 +77,37 @@ class MeetingAnalyzer:
         if not text.strip():
             return []
 
+        stopwords = {
+            "meeting", "title", "duration", "total", "participants", "participant",
+            "spoken", "dialogue", "transcript", "session", "notes", "recorded",
+            "during", "about", "there", "their", "where", "which", "would", "could",
+            "should", "hello", "system", "please", "thanks", "thank"
+        }
+
         if self.nlp:
             doc = self.nlp(text[:100000])
             nouns = [
-                chunk.text.lower()
+                chunk.text.lower().strip()
                 for chunk in doc.noun_chunks
-                if len(chunk.text) > 3
+                if len(chunk.text) > 3 and chunk.text.lower().strip() not in stopwords
             ]
             seen = set()
             keywords = []
             for n in nouns:
-                if n not in seen:
+                if n not in seen and not any(w in stopwords for w in n.split()):
                     seen.add(n)
                     keywords.append(n)
-            return keywords[:15]
+            if keywords:
+                return keywords[:12]
 
-        words = re.findall(r"\b[a-zA-Z]{5,}\b", text.lower())
+        clean_text = re.sub(r"\[.*?\]:", "", text)
+        words = re.findall(r"\b[a-zA-Z]{4,}\b", clean_text.lower())
         freq = {}
         for w in words:
-            freq[w] = freq.get(w, 0) + 1
-        return [w for w, _ in sorted(freq.items(), key=lambda x: -x[1])[:15]]
+            if w not in stopwords:
+                freq[w] = freq.get(w, 0) + 1
+        sorted_words = [w for w, _ in sorted(freq.items(), key=lambda x: -x[1])]
+        return sorted_words[:12]
 
     def _summarize(self, transcript: str) -> dict:
         if self.openai_client:
@@ -173,23 +184,31 @@ ACTION ITEMS:
 
     def _rule_based_summarize(self, transcript: str) -> dict:
         lines = [line.strip() for line in transcript.split("\n") if line.strip()]
-        dialogue = [l for l in lines if not l.startswith(("Meeting Title:", "Duration:", "Total Participants:", "---"))]
-        
-        if dialogue:
-            summary = " ".join(dialogue[:5])
-            key_points = dialogue[:5]
-        elif lines:
-            summary = " ".join(lines[:5])
-            key_points = lines[:5]
+        clean_sentences = []
+
+        for line in lines:
+            if line.startswith(("Meeting Title:", "Duration:", "Total Participants:", "---")):
+                continue
+            # Strip prefix like [Speaker Name]: or [Chat - User]:
+            cleaned = re.sub(r"^\[.*?\]:\s*", "", line).strip()
+            if cleaned and len(cleaned) > 2 and not cleaned.startswith("No spoken dialogue"):
+                clean_sentences.append(cleaned)
+
+        if clean_sentences:
+            summary = "Key discussion points from this session: " + " ".join(clean_sentences[:4])
+            key_points = clean_sentences[:6]
         else:
-            summary = "Meeting completed with participants."
-            key_points = ["Meeting completed successfully."]
+            summary = "Meeting completed with participants. No extended speech or chat transcript was recorded."
+            key_points = ["Meeting commenced and concluded successfully.", "Participant audio and video channels were active."]
 
         action_items = []
-        target_lines = dialogue if dialogue else lines
-        for s in target_lines:
-            if re.search(r"\b(will|should|need to|action|todo|follow up|assign)\b", s, re.I):
-                action_items.append({"task": s.strip(), "assignee": "", "deadline": ""})
+        for s in clean_sentences:
+            if re.search(r"\b(will|should|need to|action|todo|follow up|assign|must|going to)\b", s, re.I):
+                action_items.append({"task": s, "assignee": "", "deadline": ""})
+
+        if not action_items and clean_sentences:
+            action_items.append({"task": f"Review meeting notes regarding: {clean_sentences[0]}", "assignee": "", "deadline": ""})
+
         return {
             "summary": summary,
             "key_points": key_points[:10],

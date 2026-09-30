@@ -331,11 +331,14 @@ exports.endMeeting = async (req, res) => {
           participants.reduce((s, p) => s + (p.engagementScore || 0), 0) /
           Math.max(participants.length, 1);
       } else {
-        const lines = compiledTranscript.split('\n').filter(l => l.trim() && !l.startsWith('Meeting Title:') && !l.startsWith('Duration:') && !l.startsWith('Total Participants:') && !l.startsWith('---'));
-        analytics.summary = lines.length > 0
-          ? `Meeting discussion summary: ${lines.slice(0, 4).join('. ')}`
+        const rawLines = compiledTranscript.split('\n').filter(l => l.trim() && !l.startsWith('Meeting Title:') && !l.startsWith('Duration:') && !l.startsWith('Total Participants:') && !l.startsWith('---'));
+        const cleanLines = rawLines.map(l => l.replace(/^\[.*?\]:\s*/, '').trim()).filter(l => l && !l.startsWith('No spoken dialogue'));
+        analytics.summary = cleanLines.length > 0
+          ? `Key discussion points from this session: ${cleanLines.slice(0, 4).join('. ')}`
           : `Meeting completed with ${participants.length} participant(s).`;
-        analytics.keyPoints = lines.length > 0 ? lines.slice(0, 5) : [`Total duration: ${meeting.duration || 0}m`, `Participants: ${participants.length}`];
+        analytics.keyPoints = cleanLines.length > 0 ? cleanLines.slice(0, 5) : [`Total duration: ${meeting.duration || 0}m`, `Participants: ${participants.length}`];
+        analytics.actionItems = cleanLines.length > 0 ? [{ task: `Follow up on: ${cleanLines[0]}`, assignee: '', deadline: '' }] : [];
+        analytics.keywords = cleanLines.length > 0 ? Array.from(new Set(cleanLines.join(' ').toLowerCase().match(/\b[a-zA-Z]{5,}\b/g) || [])).slice(0, 8) : ['Meeting', 'Session'];
         analytics.transcript = compiledTranscript;
       }
       analytics.processingStatus = 'completed';
@@ -343,11 +346,12 @@ exports.endMeeting = async (req, res) => {
     } catch (procErr) {
       console.error('Error processing meeting summary:', procErr);
       analytics.processingStatus = 'completed';
-      const lines = compiledTranscript.split('\n').filter(l => l.trim() && !l.startsWith('Meeting Title:') && !l.startsWith('Duration:') && !l.startsWith('Total Participants:') && !l.startsWith('---'));
-      analytics.summary = lines.length > 0
-        ? `Meeting discussion summary: ${lines.slice(0, 4).join('. ')}`
+      const rawLines = compiledTranscript.split('\n').filter(l => l.trim() && !l.startsWith('Meeting Title:') && !l.startsWith('Duration:') && !l.startsWith('Total Participants:') && !l.startsWith('---'));
+      const cleanLines = rawLines.map(l => l.replace(/^\[.*?\]:\s*/, '').trim()).filter(l => l && !l.startsWith('No spoken dialogue'));
+      analytics.summary = cleanLines.length > 0
+        ? `Key discussion points from this session: ${cleanLines.slice(0, 4).join('. ')}`
         : `Meeting completed with ${participants.length} participant(s).`;
-      analytics.keyPoints = lines.length > 0 ? lines.slice(0, 5) : [`Total duration: ${meeting.duration || 0}m`, `Participants: ${participants.length}`];
+      analytics.keyPoints = cleanLines.length > 0 ? cleanLines.slice(0, 5) : [`Total duration: ${meeting.duration || 0}m`, `Participants: ${participants.length}`];
       analytics.transcript = compiledTranscript;
       await analytics.save();
     }
