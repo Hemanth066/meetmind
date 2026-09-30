@@ -432,35 +432,15 @@ function updateLiveAnalyticsUI(participantId, data) {
     const name = item.name || 'Participant';
     const isFaceDetected = m.face_detected !== false && (m.face_visibility > 0 || m.engagement_estimate > 0);
     const engagement = isFaceDetected ? Math.round(m.engagement_estimate || 0) : 0;
-    const attention = isFaceDetected ? (m.attention_status || 'Attentive') : 'No Face Detected / Away';
+    const attention = isFaceDetected ? (m.attention_status || 'Attentive (Focused)') : 'No Face Detected / Away';
     const faceVis = isFaceDetected ? Math.round(m.face_visibility || 0) : 0;
     const headPose = isFaceDetected ? Math.round(m.head_pose_forward || 0) : 0;
     const eyeFocus = isFaceDetected ? Math.round(m.eye_forward || 0) : 0;
-    const dominantEmotion = isFaceDetected ? (m.dominant_emotion || 'Focused') : 'No Face';
 
     let badgeClass = 'badge-live';
     if (!isFaceDetected || attention.includes('Distracted') || attention.includes('Drowsy') || attention.includes('No Face')) {
       badgeClass = 'badge-ended';
     }
-
-    const emotions = m.emotions || {};
-    const emoHtml = isFaceDetected ? `
-      <div style="margin-top:0.6rem;padding-top:0.5rem;border-top:1px dashed var(--glass-border)">
-        <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:0.3rem">
-          <span style="color:var(--text-muted)">🎭 Emotion:</span>
-          <strong style="color:var(--accent)">${dominantEmotion}</strong>
-        </div>
-        <div style="display:flex;gap:0.3rem;flex-wrap:wrap">
-          <span class="badge" style="font-size:0.65rem;background:rgba(255,255,255,0.08)">😊 Happy ${emotions.happy || 0}%</span>
-          <span class="badge" style="font-size:0.65rem;background:rgba(255,255,255,0.08)">😐 Neutral ${emotions.neutral || 0}%</span>
-          <span class="badge" style="font-size:0.65rem;background:rgba(255,255,255,0.08)">😲 Surprised ${emotions.surprised || 0}%</span>
-        </div>
-      </div>
-    ` : `
-      <div style="margin-top:0.5rem;font-size:0.75rem;color:var(--danger)">
-        ⚠️ Face is not in camera view (Metrics set to 0%)
-      </div>
-    `;
 
     html += `
       <div class="glass" style="padding:0.85rem;margin-bottom:0.85rem;border-radius:12px;border:1px solid var(--glass-border)">
@@ -481,9 +461,8 @@ function updateLiveAnalyticsUI(participantId, data) {
           <div>👀 Eye Focus: <strong style="color:var(--text)">${eyeFocus}%</strong></div>
           <div>👤 Face Vis: <strong style="color:var(--text)">${faceVis}%</strong></div>
           <div>📐 Head Pose: <strong style="color:var(--text)">${headPose}%</strong></div>
-          <div>😊 Smiles: <strong style="color:var(--text)">${m.smile_count || 0}</strong></div>
+          <div>😊 Smiles: <strong style="color:var(--text)">${isFaceDetected ? (m.smile_count || 0) : 0}</strong></div>
         </div>
-        ${emoHtml}
       </div>
     `;
   });
